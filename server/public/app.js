@@ -268,6 +268,7 @@
       favicon      = data.favicon || "";
       categories   = Array.isArray(data.categories) ? data.categories : [];
       directories  = Array.isArray(data.directories) ? data.directories : [];
+      window.__GALLERY_FS_ROOT = data.fsRoot || "/";
     } catch (e) {
       console.warn("API init failed:", e);
     }
@@ -1790,7 +1791,7 @@
       </div>
     `;
     dirList.appendChild(li);
-    let cwd = "/vol02";
+    let cwd = window.__GALLERY_FS_ROOT || "/";
     async function loadDirList(root) {
       try {
         const data = await window.API.apiGet(`/directories?root=${encodeURIComponent(root)}`);

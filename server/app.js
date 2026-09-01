@@ -248,7 +248,32 @@ function checkAuth(req) {
 // 浏览器看不到密码哈希
 function publicConfig(cfg) {
   const { passwordHash, passwordSalt, ...rest } = cfg;
-  return rest;
+  return { ...rest, fsRoot: resolveFsRoot(cfg) };
+}
+
+// 浏览根：环境变量 / config.fsRoot / 已配置目录的公共前缀 / 系统根。禁止写死 /vol02。
+function resolveFsRoot(cfg) {
+  const c = cfg || loadConfig();
+  const envRoot = process.env.GALLERY_FS_ROOT;
+  if (envRoot && fs.existsSync(envRoot)) return path.resolve(envRoot);
+  if (c.fsRoot && fs.existsSync(c.fsRoot)) return path.resolve(c.fsRoot);
+  const dirs = (c.directories || [])
+    .map(d => d && d.path)
+    .filter(p => typeof p === 'string' && p && fs.existsSync(p))
+    .map(p => path.resolve(p));
+  if (dirs.length) {
+    const segs = dirs.map(p => p.split(path.sep).filter(Boolean));
+    let i = 0;
+    while (i < segs[0].length && segs.every(s => s[i] === segs[0][i])) i++;
+    const prefix = path.sep + segs[0].slice(0, Math.max(i, 1)).join(path.sep);
+    if (fs.existsSync(prefix)) return prefix;
+  }
+  return path.parse(ROOT).root || '/';
+}
+
+function queryRoot(query) {
+  if (query.root) return query.root;
+  return resolveFsRoot();
 }
 
 // ============================================================
@@ -348,7 +373,7 @@ async function apiAuthLogout(req, res) {
 
 // GET /api/directories
 function apiDirectories(query, res) {
-  const root = query.root || '/vol02';
+  const root = queryRoot(query);
   try {
     const items = fs.readdirSync(root, { withFileTypes: true })
       .filter(d => d.isDirectory())
@@ -362,7 +387,7 @@ function apiDirectories(query, res) {
 
 // GET /api/images?root=&path=&recursive=false
 function apiImages(query, res) {
-  const root = query.root || '/vol02';
+  const root = queryRoot(query);
   const relativePath = query.path || '';
   const recursive = query.recursive === 'true';
   const searchPath = path.join(root, relativePath);
@@ -425,7 +450,7 @@ function apiImages(query, res) {
 // 用户原话「网页每次刷新都要重新请求也不好」「切换目录秒响应图片晚点加载都没事」
 // 思路：不再前端全量递归拉；访问哪个目录就返回哪层，从递归缓存秒取，无缓存则单层扫
 function apiDir(query, res) {
-  const root = query.root || '/vol02';
+  const root = queryRoot(query);
   const relativePath = query.path || '';
   const searchPath = path.join(root, relativePath);
 
