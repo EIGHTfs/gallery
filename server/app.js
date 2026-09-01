@@ -789,7 +789,70 @@ function detectFramesFromDir(files) {
   return best;
 }
 
-// zip 条目解析（流式读尾部 EOCD + 中央目录，GBK 回退）
+// ============================================================
+// GBK 解码（压缩包中文条目名）
+// 问题：SA6400 群晖 Node 套件不支持 TextDecoder("gbk")（The "gbk" encoding is not supported）
+//   → 代码回退 rawName.toString("utf8") 产生乱码（如 ���ҡ��ĵ���）
+// 方案：TextDecoder("gbk") 可用直接用；不可用则用 python3 批量 GBK 解码兜底（零依赖）
+// ============================================================
+let _GBK_DECODER_OK = null;
+function gbkDecoderAvailable() {
+  if (_GBK_DECODER_OK === null) {
+    try { new TextDecoder("gbk"); _GBK_DECODER_OK = true; }
+    catch (_) { _GBK_DECODER_OK = false; }
+  }
+  return _GBK_DECODER_OK;
+}
+
+// 批量 GBK 解码：pending = [{ idx, raw: Buffer }] → Map(idx → string)
+function decodeGbkBatch(pending) {
+  const out = new Map();
+  const todo = [];
+  for (const it of pending) {
+    if (gbkDecoderAvailable()) {
+      out.set(it.idx, new TextDecoder("gbk").decode(it.raw));
+    } else {
+      todo.push({ i: it.idx, h: it.raw.toString("hex") });
+    }
+  }
+  if (!todo.length) return out;
+  try {
+    const script =
+      "import sys,json\n" +
+      "d=json.load(sys.stdin)\n" +
+      "o={}\n" +
+      "for it in d:\n" +
+      "    b=bytes.fromhex(it['h'])\n" +
+      "    try: s=b.decode('gbk')\n" +
+      "    except Exception: s=b.decode('utf-8', errors='replace')\n" +
+      "    o[str(it['i'])]=s\n" +
+      "print(json.dumps(o, ensure_ascii=False))";
+    const res = execFileSync("python3", ["-c", script], {
+      input: JSON.stringify(todo), encoding: "utf8", timeout: 15000,
+    });
+    const obj = JSON.parse(res.trim());
+    for (const [k, v] of Object.entries(obj)) out.set(parseInt(k, 10), v);
+  } catch (_) {
+    for (const it of todo) out.set(it.idx, it.raw.toString("utf8"));
+  }
+  return out;
+}
+
+// 单块 Buffer GBK 解码（7z/rar 输出行）
+function decodeGbkBuffer(buf) {
+  if (gbkDecoderAvailable()) return new TextDecoder("gbk").decode(buf);
+  try {
+    const script =
+      "import sys\n" +
+      "b=bytes.fromhex(sys.argv[1])\n" +
+      "try: print(b.decode('gbk'))\n" +
+      "except Exception: print(b.decode('utf-8', errors='replace'))";
+    const res = execFileSync("python3", ["-c", script, buf.toString("hex")], { encoding: "utf8", timeout: 10000 });
+    return res.trim();
+  } catch (_) { return buf.toString("utf8"); }
+}
+
+// zip 条目解析（流式读尾部 EOCD + 中央目录，UTF-8 严格失败 → GBK 批量回退）
 function listZipEntriesNode(zipPath) {
   const fd = fs.openSync(zipPath, "r");
   try {
@@ -810,6 +873,7 @@ function listZipEntriesNode(zipPath) {
     const cd = Buffer.alloc(cdLen);
     fs.readSync(fd, cd, 0, cdLen, cdOff);
     const entries = [];
+    const pending = [];   // UTF-8 严格解码失败的条目，稍后批量 GBK 解码
     let p = 0;
     for (let n = 0; n < count; n++) {
       if (cd.readUInt32LE(p) !== 0x02014b50) break;
@@ -822,14 +886,19 @@ function listZipEntriesNode(zipPath) {
       const localOff = cd.readUInt32LE(p + 42);
       const extAttr = cd.readUInt32LE(p + 38);
       const rawName = cd.slice(p + 46, p + 46 + nameLen);
-      let name;
+      let name = null;
       try { name = new TextDecoder("utf-8", { fatal: true }).decode(rawName); }
-      catch (_) {
-        try { name = new TextDecoder("gbk").decode(rawName); } catch (_2) { name = rawName.toString("utf8"); }
-      }
-      const isDir = ((extAttr >>> 16) & 0x4000) !== 0 || /\/$/.test(name);
-      entries.push({ name, method, compSize, uncompSize, localOff, isDir });
+      catch (_) { pending.push({ idx: n, raw: rawName }); }
+      const isDir = ((extAttr >>> 16) & 0x4000) !== 0 || /\/$/.test(name || "");
+      entries.push({ name: name || "", method, compSize, uncompSize, localOff, isDir });
       p += 46 + nameLen + extraLen + commLen;
+    }
+    if (pending.length) {
+      const decoded = decodeGbkBatch(pending);
+      for (const it of pending) {
+        const d = decoded.get(it.idx);
+        if (d) { entries[it.idx].name = d; entries[it.idx].isDir = entries[it.idx].isDir || /\/$/.test(d); }
+      }
     }
     return entries;
   } finally { fs.closeSync(fd); }
@@ -864,9 +933,23 @@ function listArchiveImages(archivePath) {
     } catch (_) { return []; }
   }
   try {
-    const out = execFileSync(SEVEN_ZIP, ["l", archivePath], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024, timeout: 30000 });
+    // 7z 输出可能是 GBK 字节（SA6400 群晖 Node 无 TextDecoder("gbk")）→ buffer 按行解码
+    const outBuf = execFileSync(SEVEN_ZIP, ["l", archivePath], { encoding: "buffer", maxBuffer: 16 * 1024 * 1024, timeout: 30000 });
+    const lines = [];
+    let start = 0;
+    for (let i = 0; i < outBuf.length; i++) {
+      if (outBuf[i] === 0x0a) { lines.push(outBuf.slice(start, i)); start = i + 1; }
+    }
+    if (start < outBuf.length) lines.push(outBuf.slice(start));
+    let text = "";
+    for (const lb of lines) {
+      let line;
+      try { line = new TextDecoder("utf-8", { fatal: true }).decode(lb); }
+      catch (_) { line = decodeGbkBuffer(lb); }
+      text += line + "\n";
+    }
     const imgs = [];
-    for (const line of out.split("\n")) {
+    for (const line of text.split("\n")) {
       const m = line.match(/^\s*[\d\-:]+\s+[\d\-:]+\s+([\.DA]+)\s+(\d+)\s+\d+\s+(.+)$/);
       if (m && !m[1].includes("D") && !m[3].includes("?") && IMG_EXT_RE.test(m[3].trim())) imgs.push({ name: m[3].trim(), size: parseInt(m[2], 10) });
     }
