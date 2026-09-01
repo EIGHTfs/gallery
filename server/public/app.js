@@ -963,10 +963,36 @@
       sortBar.className = "sort-bar";
       sortBar.innerHTML = `<span class="sort-count">🩷 ${favoriteImages.length} ${escapeHTML(t("imagesCount"))}</span>`;
       gallery.appendChild(sortBar);
-      const grid = document.createElement("div");
-      grid.className = "dir-grid";
-      favoriteImages.forEach(p => grid.appendChild(makeCard(p, { dir: p.dir || "", lbList: favoriteImages })));
-      gallery.appendChild(grid);
+      // 用户原话「收藏里面来自每个分类各一行，不都在一行」→ 按分类分组，每分类一个 section
+      const byCat = new Map();
+      for (const p of favoriteImages) {
+        const cat = p.cat || "unknown";
+        if (!byCat.has(cat)) byCat.set(cat, []);
+        byCat.get(cat).push(p);
+      }
+      // 分类顺序：按已配置 categories 顺序，未知分类放最后
+      const catOrder = new Map(categories.map((c, i) => [c.name, i]));
+      const keys = [...byCat.keys()].sort((a, b) =>
+        (catOrder.has(a) ? catOrder.get(a) : 999) - (catOrder.has(b) ? catOrder.get(b) : 999)
+        || a.localeCompare(b, "zh-CN"));
+      for (const cat of keys) {
+        const imgs = byCat.get(cat);
+        const catMeta = categories.find(c => c.name === cat);
+        const section = document.createElement("div");
+        section.className = "dir-section";
+        const header = document.createElement("div");
+        header.className = "dir-section-header group";
+        header.innerHTML =
+          `<span class="dir-section-icon">🩷</span>` +
+          `<span class="dir-section-name">${escapeHTML(catMeta?.label || cat)}</span>` +
+          `<span class="dir-section-meta">${imgs.length} ${escapeHTML(t("imagesCount"))}</span>`;
+        section.appendChild(header);
+        const grid = document.createElement("div");
+        grid.className = "dir-grid";
+        imgs.forEach(p => grid.appendChild(makeCard(p, { dir: p.dir || "", lbList: favoriteImages })));
+        section.appendChild(grid);
+        gallery.appendChild(section);
+      }
       renderBreadcrumb(favoriteImages, favoriteImages.length);
       return;
     }
