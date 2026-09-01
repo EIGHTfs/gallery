@@ -240,12 +240,14 @@
     const r = await window.API.apiLogin(pw);
     if (r && r.ok) {
       authed = true;
+      authedUser = true;            // 登录后立即可收藏（原来只设 authed，收藏按钮仍报未登录）
       closeLoginModal();
       updateAuthUI();
       showNotification(t("loginSuccess") || "登录成功", "success");
       // 登录后自动打开设置
       settingsPanel.classList.add("open");
       renderSettings();
+      loadFavorites();              // 刷新收藏状态（authedUser / 收藏列表）
     } else {
       loginError.style.display = "block";
     }
@@ -253,6 +255,9 @@
   async function doLogout() {
     await window.API.apiLogout();
     authed = false;
+    authedUser = false;
+    favoriteImages = [];
+    favoriteSrcs = new Set();
     updateAuthUI();
     settingsPanel.classList.remove("open");
     showNotification(t("logoutSuccess") || "已退出登录", "success");

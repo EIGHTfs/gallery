@@ -224,6 +224,13 @@ function loadConfig() {
   return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 }
 
+// 排除目录（群晖 @eaDir 等系统目录）：config.json 的 excludeDirs 配置，默认 @eaDir
+function getExcludeDirs() {
+  const c = loadConfig();
+  const arr = Array.isArray(c.excludeDirs) ? c.excludeDirs : ['@eaDir'];
+  return new Set(arr.map(n => String(n).trim()).filter(Boolean));
+}
+
 function saveConfig(config) {
   fs.writeFileSync(CONFIG, JSON.stringify(config, null, 2), 'utf8');
 }
@@ -295,10 +302,12 @@ function statMtime(p) {
 function recursiveScanAll(dir) {
   const images = [];
   const dirMtimes = new Map();
+  const exclude = getExcludeDirs();
   function scan(d) {
     let entries;
     try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch (_) { return; }
     for (const entry of entries) {
+      if (entry.isDirectory() && exclude.has(entry.name)) continue; // 排除 @eaDir 等
       const full = path.join(d, entry.name);
       if (entry.isDirectory()) {
         scan(full);
@@ -375,8 +384,9 @@ async function apiAuthLogout(req, res) {
 function apiDirectories(query, res) {
   const root = queryRoot(query);
   try {
+    const exclude = getExcludeDirs();
     const items = fs.readdirSync(root, { withFileTypes: true })
-      .filter(d => d.isDirectory())
+      .filter(d => d.isDirectory() && !exclude.has(d.name))
       .map(d => d.name)
       .sort();
     jsonRes(res, 200, { root, items });
@@ -528,10 +538,12 @@ function apiDir(query, res) {
     const subdirs = [];
     const images = [];
     const seen = new Set();
+    const exclude = getExcludeDirs();
     let entries;
     try { entries = fs.readdirSync(searchPath, { withFileTypes: true }); } catch (_) { entries = []; }
     for (const e of entries) {
       const full = path.join(searchPath, e.name);
+      if (e.isDirectory() && exclude.has(e.name)) continue; // 排除 @eaDir 等
       if (e.isDirectory()) {
         const rel = relativePath ? relativePath + '/' + e.name : e.name;
         subdirs.push({ name: e.name, relPath: rel, root, sig: statMtime(full) });

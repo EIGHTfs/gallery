@@ -33,7 +33,7 @@ cd /Game.Patch\ N\ MOD/gallery          # SA6400 部署目录（CIFS 即 /vol02/
 |---|---|---|
 | `server/app.js` | 零依赖 API（默认 :8081，同端口静态页+API） | 纯 Node 内置模块 |
 | `server/auth.js` | 登录：scrypt、session、HttpOnly cookie | 仿 gbmd-v3 |
-| `server/config.json` | 设置：title/favicon/categories/directories/密码哈希 | 实时读，gitignore |
+| `server/config.json` | 设置：title/favicon/categories/directories/excludeDirs/密码哈希 | 实时读，gitignore |
 | `server/sessions.json` | session 持久化 | gitignore |
 | `server/favorites.json` | 收藏 | gitignore |
 | `server/public/` | 网页：index.html / app.js / style.css / api-client.js / locales / favicon | 学 downloader |
