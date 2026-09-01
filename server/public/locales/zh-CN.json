@@ -58,5 +58,6 @@
   "favNoUpload": "收藏分类不可上传",
   "uploadLoginNeed": "登录后才能上传到该分类",
   "upload": "上传",
-  "confirm": "确认"
+  "confirm": "确认",
+  "uncategorized": "未分类"
 }

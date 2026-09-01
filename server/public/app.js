@@ -964,13 +964,24 @@
       sortBar.innerHTML = `<span class="sort-count">🩷 ${favoriteImages.length} ${escapeHTML(t("imagesCount"))}</span>`;
       gallery.appendChild(sortBar);
       // 用户原话「收藏里面来自每个分类各一行，不都在一行」→ 按分类分组，每分类一个 section
+      // cat 缺失的老收藏：用 root 路径匹配已配置目录反推分类，反推不到才归「未分类」
+      const favCat = (p) => {
+        if (p.cat) return p.cat;
+        const roots = [p.root, p.dir, p.path].filter(Boolean);
+        const byPath = [...directories].sort((a, b) => b.path.length - a.path.length);
+        for (const r of roots) {
+          const hit = byPath.find(d => r && (r === d.path || r.startsWith(d.path + "/")));
+          if (hit) return hit.category;
+        }
+        return "__uncat__";
+      };
       const byCat = new Map();
       for (const p of favoriteImages) {
-        const cat = p.cat || "unknown";
+        const cat = favCat(p);
         if (!byCat.has(cat)) byCat.set(cat, []);
         byCat.get(cat).push(p);
       }
-      // 分类顺序：按已配置 categories 顺序，未知分类放最后
+      // 分类顺序：按已配置 categories 顺序，未知/未分类放最后
       const catOrder = new Map(categories.map((c, i) => [c.name, i]));
       const keys = [...byCat.keys()].sort((a, b) =>
         (catOrder.has(a) ? catOrder.get(a) : 999) - (catOrder.has(b) ? catOrder.get(b) : 999)
@@ -978,13 +989,14 @@
       for (const cat of keys) {
         const imgs = byCat.get(cat);
         const catMeta = categories.find(c => c.name === cat);
+        const label = cat === "__uncat__" ? (t("uncategorized") || "未分类") : (catMeta?.label || cat);
         const section = document.createElement("div");
         section.className = "dir-section";
         const header = document.createElement("div");
         header.className = "dir-section-header group";
         header.innerHTML =
           `<span class="dir-section-icon">🩷</span>` +
-          `<span class="dir-section-name">${escapeHTML(catMeta?.label || cat)}</span>` +
+          `<span class="dir-section-name">${escapeHTML(label)}</span>` +
           `<span class="dir-section-meta">${imgs.length} ${escapeHTML(t("imagesCount"))}</span>`;
         section.appendChild(header);
         const grid = document.createElement("div");

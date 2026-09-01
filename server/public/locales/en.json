@@ -58,5 +58,6 @@
   "favNoUpload": "Cannot upload to Favorites",
   "uploadLoginNeed": "Login required to upload to this category",
   "upload": "Upload",
-  "confirm": "Confirm"
+  "confirm": "Confirm",
+  "uncategorized": "Uncategorized"
 }
