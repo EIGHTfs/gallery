@@ -2,8 +2,8 @@ node_modules/
 cache-gifs/
 uploads/
 *.log
-sessions.json
-favorites.json
-config.json
+server/sessions.json
+server/favorites.json
+server/config.json
 .git-push-token
 .git-credentials-local

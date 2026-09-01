@@ -9,7 +9,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-const SESSION_FILE = path.join(__dirname, "..", "sessions.json");
+const SESSION_FILE = path.join(__dirname, "sessions.json");
 const sessions = new Map(); // token -> { expiresAt }
 
 function loadSessions() {

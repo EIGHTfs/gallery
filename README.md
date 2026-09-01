@@ -14,7 +14,7 @@
 
 ## 二、快速启动
 
-目录结构学 `gamebanana-mods-downloader-server`：后端在 `server/`，启动命令是 `./start-linux.sh`（默认 **restart**）。
+目录结构学 `gamebanana-mods-downloader-server`：后端 `server/`，网页 `server/public/`，启动 `./start-linux.sh`（默认 **restart**）。
 
 ```bash
 cd /Game.Patch\ N\ MOD/gallery          # SA6400 部署目录（CIFS 即 /vol02/1000-0-1c60be7b/gallery）
@@ -31,23 +31,16 @@ cd /Game.Patch\ N\ MOD/gallery          # SA6400 部署目录（CIFS 即 /vol02/
 
 | 文件 | 作用 | 备注 |
 |---|---|---|
-| `server/server.js` | 零依赖 API（默认 :8081，同端口静态页+API 路由） | 纯 Node 内置模块，无 express/cors/multer |
-| `server/auth.js` | 登录：scrypt 密码哈希、session token、HttpOnly cookie、sessions.json 持久化 | 仿 gbmd-v3 |
-| `config.json` | 设置：`title`/`favicon`/`categories`/`directories`/`passwordHash`/`passwordSalt` | 每次请求实时读，改文件无需重启 |
-| `sessions.json` | 已登录 session 持久化（重启免登录） | 内含随机 token，已 gitignore |
-| `app.js` | 前端主逻辑（IIFE）：目录树/分组/渲染/lightbox/GIF/折叠/登录 UI/收藏/拖拽滑动 | 唯一前端逻辑 |
-| `api-client.js` | 前端 API 客户端：同源请求（`API_ROOT=''`），`credentials:'same-origin'` | 零依赖后同端口，不再跨源 |
-| `index.html` | 页面骨架 + 设置面板 + 登录弹窗 | 引用 `?v=` |
-| `style.css` | 全部样式（含横向滚动图片行、登录弹窗） | |
-| `start-linux.sh` | 启停脚本（学 downloader）：默认 restart，`--port`，`--set-password` | PID: /tmp/gallery.pid，日志 server/server.log |
-| `locales/zh-CN.json` / `en.json` | i18n 文案（52 键） | `data-i18n` 静态填充 + `t()` |
-| `tools/` | `7zz`（新版 7-Zip 26.02）、`ffmpeg`/`ffmpeg-lib`（GIF 合成） | 解压/合成外部工具 |
-| `cache-gifs/` | 序列帧合成 GIF 的缓存 | gitignore |
-| `uploads/` | 用户上传的图片（游客上传存本地） | gitignore |
-| `node_modules/` | 已废弃（零依赖后无需） | gitignore |
-| `favorites.json` | 收藏图片持久化 | gitignore |
-| `api.js`、`data.js` | **遗留未使用文件**（老代码，index.html 不引用） | 可删；勿与 `api-client.js` 混淆 |
-| `verify_front.js`、`verify_front2.js`、`verify_i18n.js` | CDP headless 验证脚本 | 开发自检用 |
+| `server/server.js` | 零依赖 API（默认 :8081，同端口静态页+API） | 纯 Node 内置模块 |
+| `server/auth.js` | 登录：scrypt、session、HttpOnly cookie | 仿 gbmd-v3 |
+| `server/config.json` | 设置：title/favicon/categories/directories/密码哈希 | 实时读，gitignore |
+| `server/sessions.json` | session 持久化 | gitignore |
+| `server/favorites.json` | 收藏 | gitignore |
+| `server/public/` | 网页：index.html / app.js / style.css / api-client.js / locales / favicon | 学 downloader |
+| `start-linux.sh` | 启停（默认 restart，`--port`，`--set-password`） | PID /tmp/gallery.pid，日志 server/server.log |
+| `tools/` | `7zz`、`ffmpeg`/`ffmpeg-lib` | GIF/解压 |
+| `uploads/` | 游客上传 | gitignore |
+| `cache-gifs/` | GIF 缓存 | gitignore |
 
 ## 四、架构与工作方式
 

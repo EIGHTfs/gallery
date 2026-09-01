@@ -12,11 +12,12 @@ const crypto  = require('crypto');
 const zlib    = require('zlib');
 const { execFileSync } = require('child_process');
 
-// 学 downloader：后端在 server/，项目根在上一级（静态页/config/uploads/tools）
+// 学 downloader：server/ 后端，server/public/ 网页，config/sessions 在 server/
 const ROOT   = path.join(__dirname, '..');
+const PUBLIC = path.join(__dirname, 'public');
 const PORT   = parseInt(process.env.PORT, 10) || 8081;
 const UPLOAD = path.join(ROOT, 'uploads');
-const CONFIG = path.join(ROOT, 'config.json');
+const CONFIG = path.join(__dirname, 'config.json');
 
 // 鉴权（登录后才能修改设置；浏览不强制）——auth.js 本身已零依赖
 const auth = require('./auth');
@@ -191,9 +192,9 @@ function serveStatic(res, pathname) {
   // 根路径 → index.html
   let fp;
   if (pathname === '/' || pathname === '') {
-    fp = path.join(ROOT, 'index.html');
+    fp = path.join(PUBLIC, 'index.html');
   } else {
-    fp = path.join(ROOT, pathname);
+    fp = path.join(PUBLIC, pathname);
   }
   // 目录则 403
   fs.stat(fp, (err, st) => {
@@ -648,7 +649,7 @@ async function apiPostGallery(req, res) {
 }
 
 // ─── 收藏功能（用户原话「增加收藏功能🩷，预设个不可删改的收藏分类，点了收藏的图片都会在里面平铺；登录用户可点收藏，游客可以看」）───
-const FAV_FILE = path.join(ROOT, 'favorites.json');
+const FAV_FILE = path.join(__dirname, 'favorites.json');
 function loadFavorites() {
   try {
     const raw = JSON.parse(fs.readFileSync(FAV_FILE, 'utf8'));
