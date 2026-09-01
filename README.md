@@ -31,7 +31,7 @@ cd /Game.Patch\ N\ MOD/gallery          # SA6400 部署目录（CIFS 即 /vol02/
 
 | 文件 | 作用 | 备注 |
 |---|---|---|
-| `server/server.js` | 零依赖 API（默认 :8081，同端口静态页+API） | 纯 Node 内置模块 |
+| `server/app.js` | 零依赖 API（默认 :8081，同端口静态页+API） | 纯 Node 内置模块 |
 | `server/auth.js` | 登录：scrypt、session、HttpOnly cookie | 仿 gbmd-v3 |
 | `server/config.json` | 设置：title/favicon/categories/directories/密码哈希 | 实时读，gitignore |
 | `server/sessions.json` | session 持久化 | gitignore |
@@ -192,7 +192,7 @@ config.json ──────────────── GET/POST /api/galle
 ## 六、开发自检清单（改代码后必做）
 
 ```bash
-node --check server/server.js && node --check app.js && node --check server/auth.js
+node --check server/app.js && node --check server/public/app.js && node --check server/auth.js
 ./start-linux.sh restart --port 8081
 curl -s http://10.10.10.4:8081/api/auth/status
 curl -s http://10.10.10.4:8081/api/gallery | python3 -m json.tool

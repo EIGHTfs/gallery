@@ -28,7 +28,7 @@ const _pwdIdx = process.argv.indexOf('--set-password');
 if (_pwdIdx !== -1) {
   const pwd = process.argv[_pwdIdx + 1];
   if (!pwd || String(pwd).length < 4) {
-    console.error('❌ 密码至少 4 位: node server/server.js --set-password "新密码"');
+    console.error('❌ 密码至少 4 位: node server/app.js --set-password "新密码"');
     process.exit(1);
   }
   const { hash, salt } = auth.hashPassword(pwd);

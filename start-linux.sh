@@ -49,7 +49,7 @@ start_server() {
   local port="${port_opt:-$DEFAULT_PORT}"
   mkdir -p "$(dirname "$LOG_FILE")"
   echo "▶ 启动 拾光集 (端口 $port) ..."
-  PORT="$port" nohup "$NODE_BIN" server/server.js >> "$LOG_FILE" 2>&1 &
+  PORT="$port" nohup "$NODE_BIN" server/app.js >> "$LOG_FILE" 2>&1 &
   local pid=$!
   echo "$pid" > "$PID_FILE"
   echo "✓ 服务已启动，PID: $pid"
@@ -113,7 +113,7 @@ if [[ "$1" == "--set-password" ]]; then
     echo "❌ 请提供新密码: --set-password \"新密码\""
     exit 1
   fi
-  "$NODE_BIN" server/server.js --set-password "$2"
+  "$NODE_BIN" server/app.js --set-password "$2"
   echo "✓ 密码已设置"
   exit 0
 fi
