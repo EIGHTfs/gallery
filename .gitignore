@@ -1,0 +1,9 @@
+node_modules/
+cache-gifs/
+uploads/
+*.log
+sessions.json
+favorites.json
+config.json
+.git-push-token
+.git-credentials-local

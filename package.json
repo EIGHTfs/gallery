@@ -1,0 +1,10 @@
+{
+  "name": "gallery",
+  "version": "1.0.0",
+  "description": "拾光集 — 局域网 Mod 图片画廊（零依赖）",
+  "author": "EIGHTfs",
+  "license": "MIT",
+  "scripts": {
+    "start": "node server/server.js"
+  }
+}
