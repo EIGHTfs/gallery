@@ -11,6 +11,8 @@
     "server/framework/core/app.js": "server/core/app.js",
     "server/framework/auth/auth.js": "server/auth/auth.js",
     "server/framework/update/auto-update.js": "server/update/auto-update.js",
+    "server/framework/update/tree-copy.js": "server/update/tree-copy.js",
+    "server/framework/update/apply-staged-update.cjs": "server/update/apply-staged-update.cjs",
     "server/lib/cjs-bootstrap.cjs": "server/lib/cjs-bootstrap.cjs",
     "server/framework/config/config-loader.js": "server/config/config-loader.js",
     "server/framework/store/data-backup.js": "server/store/data-backup.js",
