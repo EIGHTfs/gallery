@@ -1,0 +1,44 @@
+node_modules/
+.trash/
+cache-gifs/
+uploads/
+*.log
+server/sessions.json
+server/favorites.json
+server/config.json
+.git-push-token
+.git-credentials-local
+# npm 下载产物（dsh-git-push 自动追加，2026-08-20）
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lock
+npm-debug.log*
+.npm/
+.pnpm-store/
+
+# 外部二进制工具（ffmpeg/7zz 及依赖库，共 154M）——不入库，由部署时另行放置
+# 判据：二进制产物无引用价值、体积远超代码；对照 iwara/gbmd 同样忽略 tool/ffmpeg-lib 等
+tools/
+
+# 组装产物（由 dl-server-template 的 setup.sh 按 assemble.json 下发）——不入库，可反复重装：
+#   server/core/ server/route/ server/http/ server/auth/
+#   server/config/ server/store/ server/update/ server/assemble/
+#                                框架通用件，按功能分子目录（HTTP/鉴权/路由工厂/配置/备份/自动更新）
+#   server/boot.cjs               CJS 启动器
+#   server/lib/cjs-bootstrap.cjs  CJS 劫持
+# 判据：这些文件在模板仓库维护；入库会与模板副本双份并存，模板更新后项目侧反而过期。
+server/core/
+server/route/
+server/http/
+server/auth/
+server/config/
+server/store/
+server/update/
+server/assemble/
+server/boot.cjs
+server/lib/cjs-bootstrap.cjs
+
+# 运行期 PID（start.sh 落项目根 <项目名>.pid）
+*.pid
+node_modules.orig/

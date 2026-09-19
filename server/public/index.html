@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>拾光集</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <link rel="icon" type="image/png" href="./favicon.png" />
+  <link rel="stylesheet" href="./style.css?v=48" />
+</head>
+<body>
+  <div class="app">
+
+    <!-- Header -->
+    <header class="header">
+      <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">◀</button>
+      <div class="logo">
+        <span class="logo-icon" id="logoIcon">◆</span>
+        <span class="logo-text">Gallery</span>
+      </div>
+      <div class="nav-scroll">
+        <nav class="nav" id="nav">
+          <button class="nav-btn active" data-filter="all" data-i18n="all">全部 All</button>
+        </nav>
+      </div>
+      <div class="search-box">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="search" data-i18n-ph="search" placeholder="Search…" />
+      </div>
+      <button class="upload-btn" id="uploadBtn" data-i18n-title="upload" title="Upload">📤</button>
+      <input type="file" id="fileInput" multiple accept="image/*" style="display:none"/>
+      <button class="lang-btn" id="langBtn" title="Switch language">中/EN</button>
+      <button class="settings-btn" id="loginBtn" data-i18n-title="login" title="Login" style="display:none">🔒</button>
+      <button class="settings-btn" id="settingsBtn" data-i18n-title="settings" title="Settings">⚙</button>
+    </header>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span data-i18n="directories">Directories</span>
+      </div>
+      <ul class="dir-tree" id="dirTree"></ul>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <!-- Breadcrumb -->
+      <div class="breadcrumb" id="breadcrumb">
+        <span class="crumb active">All</span>
+      </div>
+
+      <!-- Masonry grid -->
+      <div class="gallery" id="gallery"></div>
+
+      <!-- Empty state -->
+      <div class="empty" id="empty" style="display:none">
+        <span class="empty-icon">⊘</span>
+        <p data-i18n="noImages">No images found</p>
+      </div>
+    </main>
+
+    <!-- Settings Panel -->
+    <div class="settings-panel" id="settingsPanel">
+      <div class="settings-header">
+        <span data-i18n="settings">Settings</span>
+        <button class="settings-logout" id="settingsLogout" style="display:none" data-i18n="logout">Logout</button>
+      </div>
+      <div class="settings-body">
+
+        <!-- Gallery Title -->
+        <section class="settings-section">
+          <h3 data-i18n="galleryTitle">Gallery Title</h3>
+          <input type="text" id="galleryTitleInput" placeholder="My Gallery" value="崩坏3" />
+        </section>
+
+        <!-- Favicon (browser tab icon) -->
+        <section class="settings-section">
+          <h3 data-i18n="favicon">Tab Icon</h3>
+          <input type="text" id="faviconInput" placeholder="✨ 或 https://…/icon.png" value="" />
+          <p class="settings-hint" data-i18n="faviconHint">Emoji or image URL</p>
+        </section>
+
+        <!-- Categories -->
+        <section class="settings-section">
+          <div class="section-header">
+            <h3 data-i18n="categories">Categories</h3>
+            <button class="add-btn" id="addCategoryBtn" data-i18n="add">+ Add</button>
+          </div>
+          <ul class="category-list" id="categoryList"></ul>
+        </section>
+
+        <!-- Directories -->
+        <section class="settings-section">
+          <div class="section-header">
+            <h3 data-i18n="directories">Directories</h3>
+            <button class="add-btn" id="addDirBtn" data-i18n="add">+ Add</button>
+          </div>
+          <ul class="dir-list" id="dirList"></ul>
+        </section>
+
+        <!-- Images（上传区域已搬到主页顶栏📤 + 全局拖拽，这里只留列表）-->
+        <section class="settings-section">
+          <div class="section-header">
+            <h3 data-i18n="images">Images</h3>
+          </div>
+          <ul class="image-list" id="imageList"></ul>
+        </section>
+
+        <!-- Password：首次进入（未设密码）显示「设置密码」，已设密码显示「修改密码」-->
+        <section class="settings-section">
+          <div class="section-header">
+            <h3 data-i18n="password">Password</h3>
+          </div>
+          <!-- 已设密码时才需要旧密码（首次设置无需填写） -->
+          <input type="password" id="pwOld" placeholder="Current password"
+                 data-i18n-placeholder="pwOld" autocomplete="current-password" style="display:none" />
+          <input type="password" id="pwNew" placeholder="New password"
+                 data-i18n-placeholder="pwNew" autocomplete="new-password" />
+          <input type="password" id="pwConfirm" placeholder="Confirm new password"
+                 data-i18n-placeholder="pwConfirm" autocomplete="new-password" />
+          <p class="settings-hint" id="pwHint" data-i18n="pwHint">At least 4 characters</p>
+          <button class="settings-btn" id="pwSubmit" data-i18n="pwSet">Set password</button>
+          <p class="login-error" id="pwError" style="display:none"></p>
+          <p class="settings-hint" id="pwOk" style="display:none" data-i18n="pwSaved">Saved</p>
+        </section>
+
+        <!-- 更新时间：仅展示最近一次自动更新的时间，不含任何自更新操作入口 -->
+        <section class="settings-section">
+          <div class="section-header">
+            <h3 data-i18n="updateTime">Last update</h3>
+          </div>
+          <p class="settings-hint" id="updateTimeText" data-i18n="updateTimeNever">Not updated yet</p>
+        </section>
+
+        <!-- 自动更新卡片（blueprint/auto-update-card.js；id 与通用件对齐，类名适配 gallery 设置面板风格） -->
+        <section class="settings-section">
+          <div class="section-header">
+            <h3>🔄 自动更新</h3>
+          </div>
+          <p class="settings-hint">服务端代码自动更新 + 优雅重启。github 模式定时从 GitHub 拉取（服务端无需 .git），开发机推送代码后自动同步。模式与间隔见下方；github 模式的仓库/分支/Token 在 server/config.json 手改（githubRepo / githubBranch / githubToken，Token 仅私有仓库需要）。</p>
+          <p class="settings-hint" style="margin:8px 0;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="checkbox" id="autoUpdateToggle"> 启用自动更新
+            </label>
+            <label>模式
+              <select id="autoUpdateMode">
+                <option value="watch">文件监控（watch）</option>
+                <option value="git">定时 git pull</option>
+                <option value="github">从 GitHub 拉取（无需 .git）</option>
+              </select>
+            </label>
+            <label id="autoUpdateIntervalRow" style="display:none">间隔（秒）
+              <input type="number" id="autoUpdateInterval" value="300" min="30" max="3600" style="width:90px">
+            </label>
+          </p>
+          <p class="settings-hint" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button class="settings-btn" id="autoUpdateSaveBtn" type="button">保存</button>
+            <button class="settings-btn" id="autoUpdateCheckBtn" type="button" title="立即检查 GitHub 新版本（仅 github 模式）">🔍 立即检查</button>
+            <button class="settings-btn" id="autoUpdateRestartBtn" type="button" title="立即重启（不依赖文件变更检测）">🔄 立即重启</button>
+            <span class="settings-hint" id="autoUpdateStatus"></span>
+          </p>
+          <div class="settings-hint" id="autoUpdateInfo"></div>
+        </section>
+
+      </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="login-modal" id="loginModal">
+      <div class="login-box">
+        <div class="login-header">
+          <span data-i18n="loginTitle">Login</span>
+          <button class="lb-close" id="loginClose">✕</button>
+        </div>
+        <p class="login-hint" data-i18n="loginHint">Enter password to access settings</p>
+        <input type="password" id="loginPassword" placeholder="••••••" autocomplete="current-password"/>
+        <p class="login-error" id="loginError" style="display:none" data-i18n="loginFailed">Wrong password</p>
+        <!-- 登录按钮由 locale 控制（zh-CN=确认，en=Confirm） -->
+        <button class="login-submit" id="loginSubmit" data-i18n="confirm">Confirm</button>
+      </div>
+    </div>
+
+    <!-- Lightbox：三图轮播（当前图居中，前后图可见可滑动）-->
+    <div class="lightbox" id="lightbox">
+      <button class="lb-close" id="lbClose">✕</button>
+      <button class="lb-prev" id="lbPrev">‹</button>
+      <button class="lb-next" id="lbNext">›</button>
+      <button class="lb-download" id="lbDownload" data-i18n-title="download" title="Download">⬇</button>
+      <button class="lb-fav" id="lbFav" title="收藏">🩷</button>
+      <div class="lb-carousel" id="lbCarousel">
+        <img class="lb-img lb-side" id="lbImgPrev" src="" alt="" draggable="false" />
+        <img class="lb-img" id="lbImgCur" src="" alt="" draggable="false" />
+        <img class="lb-img lb-side" id="lbImgNext" src="" alt="" draggable="false" />
+      </div>
+      <div class="lb-info" id="lbInfo"></div>
+    </div>
+
+  </div>
+
+  <script src="./api-client.js?v=48"></script>
+  <script src="./auto-update-card.js"></script>
+  <script src="./app.js?v=48"></script>
+</body>
+</html>

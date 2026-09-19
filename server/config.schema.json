@@ -1,0 +1,11 @@
+{
+  "port": { "type": "number", "default": 8081 },
+  "sessionHours": { "type": "number", "default": 72 },
+  "title": { "type": "string", "default": "Gallery" },
+  "favicon": { "type": "string", "default": "" },
+  "fsRoot": { "type": "string", "default": "" },
+  "categories": { "type": "array", "default": [] },
+  "directories": { "type": "array", "default": [] },
+  "excludeDirs": { "type": "array", "default": ["@eaDir"] },
+  "autoUpdate": { "type": "object", "default": { "enabled": false, "mode": "watch", "interval": 300 } }
+}
