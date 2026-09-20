@@ -1,0 +1,48 @@
+/* 侧边栏：目录树/分组（含 settings 的分组样式）。 */
+
+/* ─── Sidebar ─── */
+.sidebar {
+  grid-area: sidebar;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  transition: .3s;
+}
+.sidebar-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 16px 12px; font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.collapse-btn {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font-size: 12px; transition: .2s;
+}
+.collapse-btn:hover { color: var(--text); }
+
+.dir-tree { list-style: none; padding: 8px 0; overflow-y: auto; flex: 1; }
+.dir-tree::-webkit-scrollbar { width: 4px; }
+.dir-tree::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.dir-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 16px; cursor: pointer; font-size: 13px;
+  color: var(--muted); transition: .15s; user-select: none;
+}
+.dir-item:hover { color: var(--text); background: rgba(124,92,252,.08); }
+.dir-item.active { color: var(--accent); background: rgba(124,92,252,.12); }
+.dir-icon { font-size: 14px; flex-shrink: 0; }
+.dir-count { margin-left: auto; font-size: 11px; background: var(--card); padding: 1px 7px; border-radius: 10px; color: var(--muted); }
+
+/* ─── Directory tree groups ─── */
+.dir-group { margin: 6px 0 2px; }
+.dir-group-label {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 16px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .8px;
+  opacity: .9; cursor: default; user-select: none;
+}
+.dir-group-label .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dir-tree ul { list-style: none; padding: 0; margin: 0; }
+.dir-item[data-path] { padding-left: 30px; }

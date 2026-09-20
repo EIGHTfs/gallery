@@ -1,0 +1,55 @@
+/* 顶栏：header/logo/分类导航/搜索框。 */
+
+/* ─── Header ─── */
+.header {
+  grid-area: header;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  z-index: 10;
+}
+.logo { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.logo-icon { font-size: 20px; color: var(--accent); }
+.logo-text { font-weight: 700; font-size: 18px; letter-spacing: .5px; }
+
+.sidebar-toggle {
+  background: none; border: none; color: var(--muted);
+  font-size: 16px; cursor: pointer; padding: 6px 10px;
+  border-radius: 8px; transition: .2s; flex-shrink: 0;
+}
+.sidebar-toggle:hover { color: var(--text); background: var(--card); }
+
+.nav-scroll {
+  /* 分类栏：外层 div 包裹、动态宽度，分类过多时可横向滑动 */
+  flex: 1; min-width: 0; margin-left: 16px;
+  overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.nav-scroll::-webkit-scrollbar { height: 4px; }
+.nav-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.nav { display: flex; gap: 4px; white-space: nowrap; width: max-content; }
+.nav-btn {
+  background: transparent; border: none; color: var(--muted);
+  padding: 6px 14px; border-radius: 8px; cursor: pointer;
+  font-size: 13px; transition: .2s; flex-shrink: 0;
+}
+.nav-btn:hover { color: var(--text); background: var(--card); }
+.nav-btn.active { color: #fff; background: var(--accent); }
+
+.search-box {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 12px; margin-left: 12px;
+  /* 搜索输入框：宽度收窄为一半 */
+  width: 100px; transition: .2s; flex-shrink: 0;
+}
+.search-box:focus-within { border-color: var(--accent); width: 130px; }
+.search-icon { color: var(--muted); font-size: 16px; }
+.search-box input {
+  background: none; border: none; outline: none;
+  color: var(--text); font-size: 13px; width: 100%;
+}

@@ -1,0 +1,56 @@
+/* Reset、页面基面与 App 壳布局（shell/breadcrumb）+ 图片右键注释死块。 */
+/* ─── Reset & base ─── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+
+/* ─── App shell ─── */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: var(--header-h) 1fr;
+  grid-template-areas:
+    "header header"
+    "sidebar main";
+  height: 100vh;
+  transition: grid-template-columns .3s;
+}
+.app.collapsed { grid-template-columns: 0 1fr; }
+
+/* ─── Main ─── */
+.main {
+  grid-area: main;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+.breadcrumb {
+  display: flex; align-items: center; gap: 6px;
+  padding: 14px 24px; font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.crumb { color: var(--muted); cursor: pointer; transition: .15s; }
+.crumb:hover { color: var(--accent); }
+.crumb.active { color: var(--text); font-weight: 600; cursor: default; }
+.crumb-sep { color: var(--muted); }
+/* 顶部导航栏的 < > 按钮：文件路径前进/后退 */
+.nav-arrow {
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text);
+  font-size: 16px; line-height: 1; padding: 4px 10px;
+  cursor: pointer; transition: .15s; flex-shrink: 0;
+}
+.nav-arrow:hover:not(.disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
+.nav-arrow.disabled { opacity: .3; cursor: default; }
+
+/* ─── 屏蔽图片右键/长按（已按用户要求注释：允许长按/右键保存图片）───
+img {
+  -webkit-user-select: none; -moz-user-select: none; user-select: none;
+  -webkit-touch-callout: none; touch-action: manipulation;
+  -webkit-user-drag: none;
+}
+.card img, .lb-img, .image-item img { pointer-events: auto; }
+.card, .lb-img { -webkit-user-drag: none; }
+.card img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }
+*/

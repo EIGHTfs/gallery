@@ -1,0 +1,22 @@
+/* Toast 提示与加载 spinner。 */
+
+/* ─── Toast ─── */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); padding: 11px 20px; border-radius: 10px;
+  font-size: 13px; z-index: 300; opacity: 0; pointer-events: none;
+  transition: .3s; box-shadow: 0 12px 32px rgba(0,0,0,.5);
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.success { border-color: #34d399; }
+.toast.error   { border-color: #ff6b6b; }
+.toast.info    { border-color: var(--accent); }
+
+/* ─── Loading spinner ─── */
+.spinner {
+  width: 18px; height: 18px; border: 2px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .8s linear infinite; display: inline-block; vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

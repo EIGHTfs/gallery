@@ -1,0 +1,29 @@
+/* 上传：上传按钮/全局拖拽覆盖层/本目录图片列表。 */
+
+/* Upload area */
+.upload-btn {
+  background: var(--card); border: 1px solid var(--border); color: var(--text);
+  font-size: 18px; padding: 6px 10px; border-radius: 8px; cursor: pointer;
+  line-height: 1; transition: .2s; flex-shrink: 0;
+}
+.upload-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* 全局拖拽上传覆盖层提示 */
+body.drag-uploading::after {
+  content: attr(data-i18n-drop-here) "📤";
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+  color: #fff; font-size: 24px;
+  border: 4px dashed var(--accent); margin: 8px;
+  pointer-events: none;
+}
+.image-list { list-style: none; max-height: 200px; overflow-y: auto; }
+.image-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px; background: var(--card); border-radius: 8px; margin-bottom: 6px;
+}
+.image-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; }
+.image-item span { flex: 1; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.image-item .img-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; }
+.image-item .img-del:hover { color: #ff6b6b; }

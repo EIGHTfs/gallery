@@ -1,0 +1,81 @@
+/* Lightbox 三图轮播 + 下载/收藏按钮。 */
+
+/* ─── Lightbox 三图轮播 ─── */
+.lightbox {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(4,4,10,.92); backdrop-filter: blur(20px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity .3s;
+  overflow: hidden;  /* 前后图超出部分隐藏，只露出边缘 */
+}
+.lightbox.open { opacity: 1; pointer-events: all; }
+.lb-carousel {
+  display: flex; align-items: center; gap: 40px;
+  transition: transform .3s ease;
+  will-change: transform;
+  pointer-events: none;
+}
+.lb-carousel .lb-img {
+  max-width: 70vw; max-height: 70vh;
+  border-radius: var(--radius);
+  box-shadow: 0 24px 64px rgba(0,0,0,.7);
+  object-fit: contain; flex-shrink: 0;
+  user-select: none; -webkit-user-drag: none;
+}
+.lb-carousel .lb-img.lb-side {
+  opacity: .55;
+  max-width: 35vw;
+  max-height: 50vh;
+}
+.lb-close, .lb-prev, .lb-next {
+  position: absolute; background: rgba(255,255,255,.1); border: none;
+  color: #fff; cursor: pointer; border-radius: 50%;
+  width: 40px; height: 40px; font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  transition: .2s; backdrop-filter: blur(6px);
+}
+.lb-close:hover, .lb-prev:hover, .lb-next:hover { background: var(--accent); }
+.lb-close { top: 20px; right: 20px; }
+.lb-prev  { left: 20px; }
+.lb-next  { right: 20px; }
+.lb-info {
+  position: absolute; bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  text-align: center; color: #fff;
+}
+.lb-info .lb-title { font-size: 15px; font-weight: 600; }
+.lb-info .lb-cat  { font-size: 12px; color: rgba(255,255,255,.5); margin-top: 4px; }
+
+/* ─── Settings Panel ─── */
+.settings-btn {
+  background: none; border: none; color: var(--muted);
+  font-size: 22px; cursor: pointer; padding: 8px;
+  border-radius: 8px; transition: .2s;
+}
+.settings-btn:hover { color: var(--text); background: var(--card); }
+
+/* ─── 语言切换按钮 ─── */
+.lang-btn {
+  background: none; border: 1px solid var(--border); color: var(--text);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  padding: 5px 12px; border-radius: 8px; transition: .2s;
+  margin-left: 8px; white-space: nowrap;
+}
+.lang-btn:hover { border-color: var(--accent); background: rgba(124,92,252,.08); }
+
+/* ─── Lightbox 下载按钮 ─── */
+.lb-download {
+  position: absolute; top: 16px; left: 76px;
+  background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25);
+  color: #fff; font-size: 20px; width: 42px; height: 42px;
+  border-radius: 50%; cursor: pointer; z-index: 110; transition: .2s;
+}
+.lb-download:hover { background: rgba(124,92,252,.8); border-color: var(--accent); }
+/* lightbox 收藏按钮 */
+.lb-fav {
+  position: absolute; top: 16px; left: 126px;
+  background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25);
+  color: #fff; font-size: 20px; width: 42px; height: 42px;
+  border-radius: 50%; cursor: pointer; z-index: 110; transition: .2s;
+}
+.lb-fav:hover { background: rgba(230,57,70,.8); border-color: #e63946; }

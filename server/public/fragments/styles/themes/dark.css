@@ -1,0 +1,16 @@
+/* 拾光集 Gallery 深色主题（唯一主题，恒深色）：语义变量集中定义。
+   主题变量最先拼装（其他组件全部通过 var() 引用本文件变量）。 */
+
+:root {
+  --bg:        #0e0e12;
+  --surface:   #18181f;
+  --card:      #1e1e28;
+  --border:    #2a2a38;
+  --text:      #e4e4ef;
+  --muted:     #6e6e8a;
+  --accent:    #7c5cfc;
+  --accent2:   #c084fc;
+  --radius:    12px;
+  --sidebar-w: 240px;
+  --header-h:  60px;
+}

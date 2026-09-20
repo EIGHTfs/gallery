@@ -39,11 +39,24 @@
     "server/templates/_gallery-style/public/api-client.js": "server/public/api-client.js",
     "server/templates/_gallery-style/public/favicon.svg": "server/public/favicon.svg",
     "server/templates/_gallery-style/public/favicon.png": "server/public/favicon.png",
-    "server/templates/_gallery-style/public/locales/": "server/public/locales/",
+    "server/templates/_gallery-style/public/locales/en.json": "server/public/locales/en.json",
+    "server/templates/_gallery-style/public/locales/zh-CN.json": "server/public/locales/zh-CN.json",
     "server/templates/_gallery-style/config.schema.json": "server/config.schema.json",
     "server/templates/_gallery-style/server/app.js": "server/app.js",
-    "server/templates/_gallery-style/server/lib/": "server/lib/",
-    "server/templates/_gallery-style/server/routes/": "server/routes/"
+    "server/templates/_gallery-style/server/lib/archive.js": "server/lib/archive.js",
+    "server/templates/_gallery-style/server/lib/auto-update.js": "server/lib/auto-update.js",
+    "server/templates/_gallery-style/server/lib/config.js": "server/lib/config.js",
+    "server/templates/_gallery-style/server/lib/gif.js": "server/lib/gif.js",
+    "server/templates/_gallery-style/server/lib/scan.js": "server/lib/scan.js",
+    "server/templates/_gallery-style/server/lib/util.js": "server/lib/util.js",
+    "server/templates/_gallery-style/server/routes/archive.js": "server/routes/archive.js",
+    "server/templates/_gallery-style/server/routes/auth.js": "server/routes/auth.js",
+    "server/templates/_gallery-style/server/routes/auto-update.js": "server/routes/auto-update.js",
+    "server/templates/_gallery-style/server/routes/browse.js": "server/routes/browse.js",
+    "server/templates/_gallery-style/server/routes/favorites.js": "server/routes/favorites.js",
+    "server/templates/_gallery-style/server/routes/gallery.js": "server/routes/gallery.js",
+    "server/templates/_gallery-style/server/routes/upload.js": "server/routes/upload.js",
+    "server/templates/_gallery-style/fragments/": "server/public/fragments/"
   },
   "init": false
 }
