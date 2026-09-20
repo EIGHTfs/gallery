@@ -1,6 +1,6 @@
 // auto-update-card.js — 自动更新卡片（蓝图通用·自包含）
 // 用法：页面里插入 @frag:auto-update-card 卡片 HTML 后，调用 AutoUpdateCard.mount() 即可。
-// 不依赖项目 api()/setStatus()/$()，内部自封装 fetch；任何 dl-server-template 系项目直接可用。
+// 不依赖项目 api()/setStatus()/$()，内部自封装 fetch；任何 bench-template 系项目直接可用。
 // 实测接口（各项目 routes/auto-update.js 提供，1:1 对齐）：
 //   GET  /api/auto-update/status   → { ok, config:{enabled,mode,interval}, status:{enabled,mode,lastSha,lastCommitDate,...} }
 //   POST /api/auto-update/config   → { enabled, mode, interval }

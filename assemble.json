@@ -56,7 +56,8 @@
     "server/templates/_gallery-style/server/routes/favorites.js": "server/routes/favorites.js",
     "server/templates/_gallery-style/server/routes/gallery.js": "server/routes/gallery.js",
     "server/templates/_gallery-style/server/routes/upload.js": "server/routes/upload.js",
-    "server/templates/_gallery-style/fragments/": "server/public/fragments/"
+    "server/templates/_gallery-style/fragments/": "server/public/fragments/",
+    "server/framework/tool/tool-detect.js": "server/tool/tool-detect.js"
   },
   "init": false
 }

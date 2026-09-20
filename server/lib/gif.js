@@ -13,31 +13,14 @@ const { execFileSync } = require("child_process");
 const { jsonRes } = require("./util");
 const { IMG_EXT_RE } = require("./scan");
 const { SEVEN_ZIP, listArchiveImages, listZipEntriesNode, readZipEntryData } = require("./archive");
+const { detectTool } = require("../tool/tool-detect.js");
 
-const TOOLS_DIR = path.join(__dirname, "..", "..", "tools");
 const CACHE_GIF_DIR = path.join(__dirname, "..", "..", "cache-gifs");
 
-// ffmpeg 选用：环境变量 > tools/（自带 lib）> 系统路径
-function _pickFfmpeg() {
-  if (process.env.FFMPEG && fs.existsSync(process.env.FFMPEG)) return { bin: process.env.FFMPEG, lib: "" };
-  const tool = path.join(TOOLS_DIR, "ffmpeg");
-  const lib = path.join(TOOLS_DIR, "ffmpeg-lib");
-  if (fs.existsSync(tool)) {
-    try {
-      execFileSync(tool, ["-version"], {
-        timeout: 8000,
-        stdio: "ignore",
-        env: lib ? Object.assign({}, process.env, { LD_LIBRARY_PATH: lib }) : undefined,
-      });
-      return { bin: tool, lib };
-    } catch (_) {
-      /* 自带 ffmpeg 不可用，落到系统路径 */
-    }
-  }
-  return { bin: fs.existsSync("/usr/bin/ffmpeg") ? "/usr/bin/ffmpeg" : "ffmpeg", lib: "" };
-}
-
-const _ff = _pickFfmpeg();
+// ffmpeg 选用：环境变量 > 项目工具目录（tool/ 或 tools/，自带 lib）> 系统路径
+// 统一走 tool/tool-detect.js（存在 + 可执行 + 版本实测，失败自动降级）；
+// 全部不可用时兜底裸名 "ffmpeg"（由 exec 走 PATH），行为与原 _pickFfmpeg 一致。
+const _ff = detectTool("ffmpeg") || { bin: "ffmpeg", lib: "" };
 const FFMPEG = _ff.bin;
 const FFMPEG_LIB = _ff.lib;
 

@@ -10,11 +10,12 @@ const zlib = require("zlib");
 const { execFileSync } = require("child_process");
 
 const { IMG_EXT_RE } = require("./scan");
+const { getTool } = require("../tool/tool-detect.js");
 
-const TOOLS_DIR = path.join(__dirname, "..", "..", "tools");
-const SEVEN_ZIP = fs.existsSync(path.join(TOOLS_DIR, "7zz"))
-  ? path.join(TOOLS_DIR, "7zz")
-  : "/usr/bin/7z";
+// 7z/7zz 选用：环境变量 > 项目工具目录（tool/ 或 tools/）> 系统路径；
+// 7zz 探测不到（不存在/不可执行）时回退 7z（统一探测模块，含可用性实测，
+// 比原来的「只 exists 检查」多一层防护——自带 7zz 坏了不再直接拿坏工具用）。
+const SEVEN_ZIP = getTool("7zz", { fallbacks: ["7z"] });
 
 // ============================================================
 // GBK 解码（压缩包中文条目名）
