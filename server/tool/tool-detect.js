@@ -29,8 +29,22 @@ const { execFileSync } = require("child_process");
 // 探测结果缓存：key = name + 关键 opts 序列化，避免每次调用都跑可执行测试
 const _cache = new Map();
 
-/** 项目根：本模块被组装到 <项目>/server/framework/tool/ 下，向上三级即项目根 */
+/** 项目根：从本模块 __dirname 逐级向上找项目根标志文件。
+ *  ⛔ 不用「向上固定 N 级」推算——本模块在模板仓库位于 <项目>/server/framework/tool/，
+ *  组装下发后位于 <项目>/server/tool/，级数不同，固定级数必然算错。
+ *  改为向上逐级探测项目根标志（assemble.json / start.sh / server/config.json 任一命中即根），
+ *  组装到哪个深度都能命中；全部探不到才回退「向上三级」（模板原始布局兜底）。 */
 function projectRoot() {
+  const marks = ["assemble.json", "start.sh", "server/config.json"];
+  let d = __dirname;
+  for (;;) {
+    const parent = path.dirname(d);
+    if (parent === d) break; // 到文件系统根
+    for (const m of marks) {
+      if (fs.existsSync(path.join(d, m))) return d;
+    }
+    d = parent;
+  }
   return path.resolve(__dirname, "..", "..", "..");
 }
 
