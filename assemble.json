@@ -44,7 +44,6 @@
     "templates/_gallery/json/config.schema.json": "server/config.schema.json",
     "templates/_gallery/server/app.js": "server/app.js",
     "templates/_gallery/server/lib/archive.js": "server/lib/archive.js",
-    "templates/_gallery/server/lib/auto-update.js": "server/lib/auto-update.js",
     "templates/_gallery/server/lib/config.js": "server/lib/config.js",
     "templates/_gallery/server/lib/gif.js": "server/lib/gif.js",
     "templates/_gallery/server/lib/scan.js": "server/lib/scan.js",
@@ -56,7 +55,8 @@
     "templates/_gallery/server/routes/favorites.js": "server/routes/favorites.js",
     "templates/_gallery/server/routes/gallery.js": "server/routes/gallery.js",
     "templates/_gallery/server/routes/upload.js": "server/routes/upload.js",
-    "templates/js/tool/tool-detect.js": "server/tool/tool-detect.js"
+    "templates/js/tool/tool-detect.js": "server/tool/tool-detect.js",
+    "templates/js/server/lib/auto-update.js": "server/lib/auto-update.js"
   },
   "init": false
 }

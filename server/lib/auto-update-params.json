@@ -1,0 +1,12 @@
+{
+  "projectName": "gallery",
+  "defaultRepo": "EIGHTfs/gallery",
+  "extraExclude": [
+    "uploads/",
+    "favorites.json",
+    "config.json",
+    "cache-gifs/",
+    "tools/"
+  ],
+  "extraChmodScripts": []
+}
