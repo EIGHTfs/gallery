@@ -42,3 +42,4 @@ server/lib/cjs-bootstrap.cjs
 # 运行期 PID（start.sh 落项目根 <项目名>.pid）
 *.pid
 node_modules.orig/
+.auto-update-state.json
