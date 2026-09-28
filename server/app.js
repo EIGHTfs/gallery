@@ -145,10 +145,25 @@ if (!fs.existsSync(path.join(__dirname, "config.schema.json"))) {
   process.exit(1);
 }
 
+// HTML/CSS 片段组装：public/ 下的页面写 <!-- @frag:名称 -->、style.css 写 /* @frag:名称 */，
+// 运行时由组装器从 public/fragments/ 取对应片段替换。缺这段，页面会原样输出 @frag 注释
+// （页面看着「没坏」但内容全是空 / 样式全丢 —— 2026-09-28 实测踩坑：style.css 拆成
+//   @frag 骨架后 gallery 未接入组装器，CSS 全部丢失）。
+// pages：页面名 → 框架文件；style.css 也走片段。brand：gallery 无 @brand 指令，传 null。
+const FRAGMENT_PAGES = ["index.html", "style.css"];
+const fragmentPages = {};
+for (const name of FRAGMENT_PAGES) {
+  const f = path.join(PUBLIC, name);
+  if (fs.existsSync(f) && fs.statSync(f).isFile()) fragmentPages[name] = f;
+}
+
 createServer({
   config,
   auth: fwAuth,
   publicDir: PUBLIC,
+  fragments: Object.keys(fragmentPages).length
+    ? { dir: path.join(PUBLIC, "fragments"), pages: fragmentPages, watch: true, brand: null }
+    : null,
   routes: [
     // 鉴权路由（登录/登出/状态/改密）：表内写的是【全路径】/api/login，
     // 故 prefix 必须为空 —— createServer 会切掉 prefix 再进路由表匹配，
