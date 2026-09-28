@@ -23,8 +23,7 @@ tools/
 
 # 组装产物（由 dl-server-template 的 setup.sh 按 assemble.json 下发）——不入库，可反复重装：
 #   server/core/ server/route/ server/http/ server/auth/
-#   server/config/ server/store/ server/update/ server/assemble/
-#                                框架通用件，按功能分子目录（HTTP/鉴权/路由工厂/配置/备份/自动更新）
+#   server/config/ server/store/ server/update/ #                                框架通用件，按功能分子目录（HTTP/鉴权/路由工厂/配置/备份/自动更新）
 #   server/boot.cjs               CJS 启动器
 #   server/lib/cjs-bootstrap.cjs  CJS 劫持
 # 判据：这些文件在模板仓库维护；入库会与模板副本双份并存，模板更新后项目侧反而过期。
@@ -35,7 +34,6 @@ server/auth/
 server/config/
 server/store/
 server/update/
-server/assemble/
 server/boot.cjs
 server/lib/cjs-bootstrap.cjs
 
