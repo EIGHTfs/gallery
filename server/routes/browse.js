@@ -11,7 +11,7 @@ const fs = require("fs");
 const path = require("path");
 
 const { jsonRes, streamFile, formatSize } = require("../lib/util");
-const { queryRoot, getExcludeDirs } = require("../lib/config");
+const { queryRoot, resolveFsRoot, browseRoot, getExcludeDirs } = require("../lib/config");
 const {
   IMG_EXT_RE,
   IMAGE_SCAN_CACHE,
@@ -22,8 +22,16 @@ const {
 } = require("../lib/scan");
 
 // GET /api/directories
-function apiDirectories(query, res) {
-  const root = queryRoot(query);
+// opts.authed=true（已登录：设置页「添加图片目录」的目录浏览器）→ 允许向上浏览到浏览天花板（browseRoot）；
+// 未登录 → 维持原行为（限制在已配置目录的公共前缀内），不扩大未登录者的暴露面。
+// 返回 { root, items, limit, clamped, canUp }：
+//   clamped=请求越界被钳回（前端提示「已到最上层」）；canUp=还有上一级可去。
+function apiDirectories(query, res, opts) {
+  const authed = !!(opts && opts.authed);
+  const picked = authed
+    ? browseRoot(query)
+    : { root: queryRoot(query), limit: resolveFsRoot(), clamped: false };
+  const root = picked.root;
   try {
     const exclude = getExcludeDirs();
     const items = fs
@@ -31,7 +39,14 @@ function apiDirectories(query, res) {
       .filter((d) => d.isDirectory() && !exclude.has(d.name))
       .map((d) => d.name)
       .sort();
-    jsonRes(res, 200, { root, items });
+    const parent = path.dirname(root);
+    jsonRes(res, 200, {
+      root,
+      items,
+      limit: picked.limit,
+      clamped: picked.clamped,
+      canUp: parent !== root,   // 到文件系统根时 parent===root，没有上一级
+    });
   } catch (e) {
     jsonRes(res, 500, { error: e.message });
   }

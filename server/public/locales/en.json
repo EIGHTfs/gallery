@@ -50,6 +50,8 @@
   "logoutSuccess": "Logged out",
   "back": "Back",
   "forward": "Forward",
+  "dirUp": "Parent folder",
+  "browseTopReached": "Top level reached",
   "favorites": "Favorites",
   "addFav": "Favorite",
   "removeFav": "Unfavorite",

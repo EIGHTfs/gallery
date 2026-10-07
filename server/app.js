@@ -102,6 +102,15 @@ function requireAuth(req, res) {
   return false;
 }
 
+// 只判定登录态、不写响应。
+// 与 requireAuth 的区别：requireAuth 失败时会直接写 401 响应，
+// 不能用于「已登录则放宽、未登录则收紧」这类需要自行决定策略的场景（如目录浏览器向上浏览）。
+function isAuthed(req) {
+  if (needsSetup()) return true;
+  const token = fwAuth.extractToken(req);
+  return !!(token && fwAuth.isValidSession(token));
+}
+
 // 所有业务路由共用的上下文（供 routes/ 下的模块取用）
 const ctx = { cfg: config, auth: fwAuth, sendJson, requireAuth, SESSION_HOURS };
 
@@ -109,7 +118,7 @@ const ctx = { cfg: config, auth: fwAuth, sendJson, requireAuth, SESSION_HOURS };
 // ② 路由表
 // ============================================================
 const browseRoutes = createRoute({
-  "GET /directories": (req, res, c) => browse.apiDirectories(c.query, res),
+  "GET /directories": (req, res, c) => browse.apiDirectories(c.query, res, { authed: isAuthed(req) }),
   "GET /images": (req, res, c) => browse.apiImages(c.query, res),
   "GET /dir": (req, res, c) => browse.apiDir(c.query, res),
   "GET /media": (req, res, c) => browse.apiMedia(c.query, res),

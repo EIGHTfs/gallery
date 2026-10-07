@@ -1917,21 +1917,28 @@
     `;
     dirList.appendChild(li);
     let cwd = window.__GALLERY_FS_ROOT || "/";
+    const upBtn = li.querySelector(".db-up");
     async function loadDirList(root) {
       try {
         const data = await window.API.apiGet(`/directories?root=${encodeURIComponent(root)}`);
         cwd = data.root;
         li.querySelector(".db-cwd").textContent = cwd;
+        // 请求越界被钳回 → 明确提示。此前是静默回退到原目录，看起来就像「📁↑ 按钮坏了」
+        if (data.clamped) showNotification(t("browseTopReached"), "info");
+        // 到顶（浏览上限 / 文件系统根）时禁用 ↑ 并说明原因
+        upBtn.disabled = !data.canUp;
+        upBtn.title = data.canUp ? t("dirUp") : t("browseTopReached");
         const ul = li.querySelector(".db-list");
         ul.innerHTML = (data.items || []).map(name => `<li class="db-item" data-name="${escapeHTML(name)}">📁 ${escapeHTML(name)}</li>`).join("");
         ul.querySelectorAll(".db-item").forEach(item => {
-          item.addEventListener("click", () => loadDirList(cwd + "/" + item.dataset.name));
+          // cwd 为 "/" 时不拼出 "//name"
+          item.addEventListener("click", () => loadDirList((cwd === "/" ? "" : cwd) + "/" + item.dataset.name));
         });
       } catch (e) {
         li.querySelector(".db-list").innerHTML = `<li style="color:var(--muted)">无法读取</li>`;
       }
     }
-    li.querySelector(".db-up").addEventListener("click", () => {
+    upBtn.addEventListener("click", () => {
       const parts = cwd.split("/").filter(Boolean);
       parts.pop();
       loadDirList("/" + parts.join("/"));

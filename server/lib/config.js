@@ -81,12 +81,37 @@ function resolveFsRoot(cfg) {
 }
 
 // 浏览请求指定的根（query.root），必须落在 resolveFsRoot 之内，防越权浏览
-function queryRoot(query) {
-  const base = resolveFsRoot();
+// cfg 可选：仅供测试注入，生产调用不传（内部自行 loadConfig）
+function queryRoot(query, cfg) {
+  const base = resolveFsRoot(cfg);
   if (!query || !query.root) return base;
   const want = path.resolve(String(query.root));
   if (want === base || want.startsWith(base.endsWith(path.sep) ? base : base + path.sep)) return want;
   return base;
+}
+
+// 目录浏览天花板（仅设置页「添加目录」的目录浏览器用）：
+//   显式配置 GALLERY_FS_ROOT / config.fsRoot → 以它为界（尊重部署方限制）
+//   未显式配置 → 文件系统根（可一路向上，选择任意本机目录）
+// 为什么不能直接用 resolveFsRoot 当上界：它取的是「已配置目录的公共前缀」，
+// 只配了一个目录时它恰好等于该目录本身，于是「上一级」永远越界被钳回原处 ——
+// 2026-10-08 修：目录浏览器（设置→添加图片目录）无法返回上一级。
+function resolveBrowseLimit(cfg) {
+  const c = cfg || loadConfig();
+  const envRoot = process.env.GALLERY_FS_ROOT;
+  if (envRoot && fs.existsSync(envRoot)) return path.resolve(envRoot);
+  if (c.fsRoot && fs.existsSync(c.fsRoot)) return path.resolve(c.fsRoot);
+  return path.parse(process.cwd()).root;
+}
+
+// 归一化并校验浏览路径：返回 { root, limit, clamped }
+// clamped=true 表示请求越界、已被钳回 limit（前端据此提示「已到最上层」而不是静默无反应）
+// cfg 可选：仅供测试注入，生产调用不传
+function browseRoot(query, cfg) {
+  const limit = resolveBrowseLimit(cfg);
+  const want = query && query.root ? path.resolve(String(query.root)) : limit;
+  const inside = want === limit || want.startsWith(limit.endsWith(path.sep) ? limit : limit + path.sep);
+  return inside ? { root: want, limit, clamped: false } : { root: limit, limit, clamped: true };
 }
 
 // 浏览器不可见密码哈希
@@ -103,5 +128,7 @@ module.exports = {
   getExcludeDirs,
   resolveFsRoot,
   queryRoot,
+  resolveBrowseLimit,
+  browseRoot,
   publicConfig,
 };

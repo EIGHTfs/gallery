@@ -50,6 +50,8 @@
   "logoutSuccess": "已退出登录",
   "back": "后退",
   "forward": "前进",
+  "dirUp": "上一级",
+  "browseTopReached": "已到最上层，不能再向上",
   "favorites": "收藏",
   "addFav": "收藏",
   "removeFav": "取消收藏",
