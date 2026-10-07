@@ -6,7 +6,7 @@
 >
 > **2026-09-19 起接入 `dl-server-template` 框架**：HTTP 服务/鉴权/路由工厂/配置/自动更新
 > 改用框架通用件，项目只保留业务代码。前端与后端资产由 `assemble.json` 声明、
-> `setup.sh` 组装生成（`server/core/` 等 8 个框架子目录与 `server/boot.cjs` 是组装产物）。
+> `setup.sh` 组装生成（`server/core/` 等 8 个框架子目录与 `server/boot.cjs` 是**模板下发件**，已入库）。
 > 本次改动见 `CHANGELOG-框架接入.md`。
 
 ## 一、项目是什么
@@ -71,7 +71,7 @@ PID 落项目根 `<项目名>.pid`、启动前等端口真正释放、8 秒健�
 | `server/routes/auth.js` | 认证路由**装配**（复用框架通用件，不手写端点逻辑） |
 | `server/routes/auto-update.js` | 自动更新路由**装配**（同上） |
 
-**组装产物**（从模板下发，不入库）：
+**模板下发件**（从模板下发，已入库）：
 
 | 文件 | 作用 |
 |---|---|
@@ -85,7 +85,7 @@ PID 落项目根 `<项目名>.pid`、启动前等端口真正释放、8 秒健�
 |---|---|
 | `server/config.json` | 设置：title/favicon/categories/directories/密码哈希。**实时读**，改完无需重启 |
 | `server/sessions.json` / `server/favorites.json` | 会话 / 收藏持久化 |
-| `server/public/` | 网页（组装产物，但含风格层素材） |
+| `server/public/` | 网页（模板下发，含风格层素材） |
 | `tools/` | `7zz`、`ffmpeg`/`ffmpeg-lib`（154M，不入库） |
 | `uploads/` / `cache-gifs/` | 游客上传 / GIF 缓存 |
 
@@ -367,7 +367,8 @@ curl -s -o /dev/null -w '%{http_code}\n' http://10.10.10.193:8081/
 - 同源项目（同一套框架与启停脚本）：`gamebanana-mods-downloader/`（8642）、`iwara-downloader/`（有自己的 `tool/node`）。
 - 模板仓库：`dl-server-template/`（本项目的前端/后端框架素材与 `start.sh` 都来自它）。
 - git：本项目已 init。已 gitignore：`sessions.json`/`favorites.json`/`config.json`/`cache-gifs/`/`uploads/`/`tools/`/`*.log`/lock 文件。
-  `server/core/` 等 8 个框架子目录、`server/boot.cjs`、`server/lib/cjs-bootstrap.cjs` 是组装产物，同样不入库。
+  `server/core/` 等 8 个框架子目录、`server/boot.cjs`、`server/lib/cjs-bootstrap.cjs` 是**模板下发件**，已入库
+  （部署端以 github 模式远程 `auto-update` 拉取本仓库，不入库就拿不到新版）。
 
 ## 八、遗留
 
@@ -378,6 +379,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://10.10.10.193:8081/
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| — | 2026-10-08 | **模板下发件入库，修复远程 auto-update 永远拉不到新版**：`server/core/` 等 8 个框架子目录与 `server/boot.cjs`、`server/lib/cjs-bootstrap.cjs` 此前被 `.gitignore` 当「组装产物」忽略；而部署端以 github 模式远程 `auto-update` 从本仓库拉代码，被忽略的文件不进仓库 = 部署端永远拿不到新版 —— `server/update/auto-update.js` 本身就是自动更新的实现，忽略它等于让它无法自更新（实测部署端停在 730 行旧版：间隔 300 秒、无失败退避）。现已入库 26 个文件；`server/update/auto-update.js` 同步为 38291 B 新版（github 模式默认间隔 3600 秒、连续失败按设定值 ×2 退避最多 3 次、不再排除 `server/boot.cjs`）；`server/public/auto-update-card.js` 同步（默认间隔 3600、上限 86400）。本 README 与 `.gitignore` 的「组装产物」措辞一并修正为「模板下发件」 |
 | — | 2026-09-20 | **同步模板统一工具探测模块**：`server/lib/gif.js`（ffmpeg 选用）、`server/lib/archive.js`（7zz→7z 回退）、`server/store/data-backup.js`（zip/unzip）改走 `server/tool/tool-detect.js`（环境变量 → `tool/` 与 `tools/` → 系统路径，每级可用性实测、失败降级）；清单新增 `server/tool/tool-detect.js` 下发条目。工具探测行为不变（找不到仍兜底系统路径/裸名），只是查找逻辑统一且多一层可用性防护 |
 | — | 2026-09-20 | **移除搬模板带进来的无引用文件 `search-date-range.cjs`**：该文件是「按时间搜索的日期窗口解析」，本项目既没有按时间搜索的路由、前后端也都没有引用它（全库 grep 为空）——gallery 不需要这个能力，它是清单从别的项目整份复制时一起带进来的。这类文件不报错、只是静静躺在项目里，要等有人照着它改代码才发现（本仓库此前已有同类先例：见下条 `login.html` 死代码）。已从 `assemble.json` 移除该条目，项目侧产物在下次组装时即消失。另：模板新增 `--dry-run` 组装预演与 `--check` 的「无引用」告警，专门用来在搬模板时提前发现这类问题 |
 | — | 2026-09-19 | **README 同步目录分层**：正文 4 处仍写着旧的 `server/framework/`（顶部说明、目录表、两处「组装产物」清单），与实际结构不符，已改为 8 个框架子目录的实际路径。目录表由 1 行拆为 2 行，分别列入口/路由/鉴权/HTTP 与 配置/存储/更新/组装 |
