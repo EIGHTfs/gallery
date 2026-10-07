@@ -12,7 +12,7 @@ const { execFileSync } = require("child_process");
 
 const { jsonRes } = require("./util");
 const { IMG_EXT_RE } = require("./scan");
-const { SEVEN_ZIP, listArchiveImages, listZipEntriesNode, readZipEntryData } = require("./archive");
+const { SEVEN_ZIP, listArchiveImages, listZipEntriesNode, readZipEntryData, hasIniEntry, readIniSpeed, readArchiveEntryData } = require("./archive");
 const { detectTool } = require("../tool/tool-detect.js");
 
 const CACHE_GIF_DIR = path.join(__dirname, "..", "..", "cache-gifs");
@@ -56,14 +56,29 @@ function detectFramesFromDir(files) {
   return best;
 }
 
+/**
+ * 由 ini 的 $speed 换算 GIF 每帧时长（毫秒）。
+ * 依据《动画mod制作指南》：`$frame = $frame + $speed` 每渲染帧递进 $speed，
+ * 故一个动画帧时长 = 1/(fps×speed) 秒；fps 为游戏渲染帧率（API 参数化，默认 60）。
+ * 结果夹到 ≥10ms（GIF 的 GCE 延迟以 10ms 为单位，更小无意义）。
+ */
+function frameMsFromIniSpeed(speed, fps) {
+  const f = Number(fps) > 0 ? Number(fps) : 60;
+  const s = Number(speed);
+  if (!Number.isFinite(s) || s <= 0) return 0;
+  return Math.max(10, Math.round(1000 / (f * s)));
+}
+
 // 构造 ffmpeg 参数（帧序列 → 循环 GIF，宽度超过 480 等比缩小）
-function _gifArgs(pattern, frameMs, gifFile) {
+// flip=true：含 ini 的 3DMigoto mod，包内贴图是**倒置存储**，合成前先 180° 翻转（vflip+hflip）
+function _gifArgs(pattern, frameMs, gifFile, flip) {
+  const vf = (flip ? "vflip,hflip," : "") + "scale=w='if(gt(iw,480),480,iw)':h=-1";
   return [
     "-y",
     "-framerate", String(1000 / frameMs),
     "-start_number", "0",
     "-i", pattern,
-    "-vf", "scale=w='if(gt(iw,480),480,iw)':h=-1",
+    "-vf", vf,
     "-loop", "0",
     gifFile,
   ];
@@ -163,14 +178,31 @@ function gifFromDir(absDir, durMs, res) {
 }
 
 // 压缩包内序列帧 → 合成 GIF
-function gifFromZip(zipPath, durMs, res) {
+// 规则（共 4 条）：
+//   ① 包名带间隔（@40ms / 2s，Pixiv 图包）→ 按该间隔合成，**不翻转**；
+//   ② 含 ini（3DMigoto mod）→ **ini 决定翻转 180°**；且有序列 且 ini 有 $speed 时按
+//      1000/(fps×$speed) 换算帧间隔合成；
+//   ③ 两者都无 → 不合成（此处直接拒绝）；
+//   ④ 含 ini 但无序列（或 ini 无 $speed）→ 不合成，只翻转（由 /api/zip/img 负责）。
+// opts.fps：游戏渲染帧率（仅用于 $speed 换算），API 参数化，默认 60。
+function gifFromZip(zipPath, durMs, res, opts) {
+  const fps = opts && Number(opts.fps) > 0 ? Number(opts.fps) : 60;
   const images = listArchiveImages(zipPath);
   const det = detectFramesFromDir(images.map((i) => i.name));
   if (!det) {
     jsonRes(res, 400, { ok: false, error: "压缩包内非序列帧" });
     return;
   }
-  const frameMs = Number.isFinite(durMs) && durMs > 0 ? durMs : Math.round(2000 / Math.max(1, det.frames.length));
+  const hasIni = hasIniEntry(zipPath);
+  const speed = hasIni ? readIniSpeed(zipPath) : null;
+  const flip = hasIni; // ini 决定翻转
+  const frameMs = Number.isFinite(durMs) && durMs > 0
+    ? durMs
+    : (speed ? frameMsFromIniSpeed(speed, fps) : 0);
+  if (!frameMs) {
+    jsonRes(res, 400, { ok: false, error: "无帧间隔来源：包名未带 @NNms，且包内 ini 无 $speed" });
+    return;
+  }
   try {
     fs.mkdirSync(CACHE_GIF_DIR, { recursive: true });
   } catch (_) {
@@ -184,7 +216,7 @@ function gifFromZip(zipPath, durMs, res) {
   }
   const zhash = crypto
     .createHash("sha1")
-    .update(zipPath + "|" + det.frames.map((f) => f.file).join(",") + "|" + zmtime + "|" + frameMs)
+    .update(zipPath + "|" + det.frames.map((f) => f.file).join(",") + "|" + zmtime + "|" + frameMs + "|" + fps + "|" + (flip ? "flip" : ""))
     .digest("hex")
     .slice(0, 16);
   const gifFile = path.join(CACHE_GIF_DIR, zhash + ".gif");
@@ -218,7 +250,7 @@ function gifFromZip(zipPath, durMs, res) {
         }
       });
       const f0 = det.frames[0];
-      _runFfmpeg(_gifArgs(path.join(tmpDir, "frame_%03d" + f0.ext), frameMs, gifFile));
+      _runFfmpeg(_gifArgs(path.join(tmpDir, "frame_%03d" + f0.ext), frameMs, gifFile, flip));
     } catch (e) {
       try {
         fs.rmSync(gifFile, { force: true });
@@ -238,11 +270,67 @@ function gifFromZip(zipPath, durMs, res) {
   _sendGif(res, gifFile);
 }
 
+/**
+ * 含 ini 的包（3DMigoto mod）内单张图片 → 180° 翻转后输出。
+ * 走 ffmpeg `vflip,hflip`，结果用**单帧 GIF** 承载：群晖静态 ffmpeg 4.1.9 缺 jpg/png muxer
+ * （`Unable to find a suitable output format`），只有 gif muxer 可用，浏览器显示单帧 GIF 正常。
+ * 结果按 路径@mtime|条目名 缓存到 cache-gifs/。
+ */
+function flipArchiveImage(archivePath, entryName, res) {
+  let mtime = 0;
+  try {
+    mtime = fs.statSync(archivePath).mtimeMs;
+  } catch (_) {
+    res.writeHead(500);
+    res.end("stat failed");
+    return;
+  }
+  const hash = crypto
+    .createHash("sha1")
+    .update(archivePath + "|" + mtime + "|" + entryName + "|flip180")
+    .digest("hex")
+    .slice(0, 16);
+  const out = path.join(CACHE_GIF_DIR, hash + ".gif");
+  if (!fs.existsSync(out)) {
+    try {
+      fs.mkdirSync(CACHE_GIF_DIR, { recursive: true });
+    } catch (_) {
+      /* 已存在 */
+    }
+    const src = path.join(CACHE_GIF_DIR, hash + ".src");
+    try {
+      const data = readArchiveEntryData(archivePath, entryName);
+      if (!data) throw new Error("entry not found");
+      fs.writeFileSync(src, data);
+      _runFfmpeg(["-y", "-i", src, "-vf", "vflip,hflip", "-frames:v", "1", out]);
+    } catch (e) {
+      try {
+        fs.rmSync(out, { force: true });
+      } catch (_) {
+        /* 清理失败不影响错误返回 */
+      }
+      res.writeHead(500);
+      res.end("flip failed");
+      return;
+    } finally {
+      try {
+        fs.rmSync(src, { force: true });
+      } catch (_) {
+        /* 临时源文件残留不影响结果 */
+      }
+    }
+  }
+  res.writeHead(200, { "Content-Type": "image/gif", "Cache-Control": "no-cache" });
+  fs.createReadStream(out).pipe(res);
+}
+
 module.exports = {
   CACHE_GIF_DIR,
   FFMPEG,
   FFMPEG_LIB,
   detectFramesFromDir,
+  frameMsFromIniSpeed,
   gifFromDir,
   gifFromZip,
+  flipArchiveImage,
 };

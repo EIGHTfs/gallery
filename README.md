@@ -11,7 +11,7 @@
 
 ## 一、项目是什么
 
-一个跑在 NAS 局域网里的图片浏览画廊：按文件目录层级浏览图片、压缩包内图直出、序列帧合成 GIF、侧边栏目录树、分类筛选、i18n 中英、设置页（标题/图标/分类/目录/上传）、可选登录保护设置页。
+一个跑在 NAS 局域网里的图片浏览画廊：按文件目录层级浏览图片、压缩包内图直出（含 ini 的 mod 图片自动 180° 翻转）、序列帧合成 GIF（按包名间隔或 ini 的 `$speed` 换算帧率）、侧边栏目录树、分类筛选、i18n 中英、设置页（标题/图标/分类/目录/上传）、可选登录保护设置页。
 
 **一个进程同时服务静态页 + API**（`./start.sh` 或 `node server/boot.cjs`），不需要额外开 python3 静态服务器，不需要 node_modules。
 
@@ -59,8 +59,8 @@ PID 落项目根 `<项目名>.pid`、启动前等端口真正释放、8 秒健�
 |---|---|
 | `server/lib/config.js` | 画廊配置读写（分类/目录），**写盘时保留密码哈希** |
 | `server/lib/scan.js` | 目录递归扫图 + mtime 缓存（首次 9.7s → 缓存 0.19s） |
-| `server/lib/archive.js` | 压缩包索引/取图（zip 自解析 + GBK 回退、7zz/rar） |
-| `server/lib/gif.js` | 序列帧合成 GIF（ffmpeg） |
+| `server/lib/archive.js` | 压缩包索引/取图（zip 自解析 + GBK 回退、7zz/rar；ini 条目检测与 `$speed` 解析） |
+| `server/lib/gif.js` | 序列帧合成 GIF（ffmpeg；含 ini 的 mod 图片 180° 翻转、按 ini `$speed` 换算帧间隔） |
 | `server/lib/util.js` | 通用件：jsonRes/streamFile/parseQuery/readMultipartUpload 等 |
 | `server/lib/auto-update.js` | 自动更新实例（引框架工厂 + 传 gallery 参数与排除项） |
 | `server/routes/browse.js` | 浏览：`/api/directories`、`/api/images`、`/api/media`、`/api/dir` |
@@ -184,10 +184,10 @@ config.json ──────────────────────�
 | `GET /api/images` | 图片列表（含目录扫描、zip 扫描） | 开放 |
 | `GET /api/media?file=` | 图片流 | 开放 |
 | `GET /api/dir?path=` | 单目录内容（侧边栏树） | 开放 |
-| `GET /api/zip/scan?dir=` | 压缩包条目 `{images}` | 开放 |
-| `GET /api/zip/img?zip=&file=` | 压缩包内图片 | 开放 |
-| `GET /api/gif?dir=&dur=` | 目录内序列帧合成 GIF | 开放 |
-| `GET /api/zip/gif?zip=&file=&dur=` | 压缩包内序列帧合成 GIF | 开放 |
+| `GET /api/zip/scan?dir=` | 压缩包条目 `{path,name,images,hasIni,speed}`（`hasIni`=含 `.ini` 的 mod 包，`speed`=ini 里的动画速度） | 开放 |
+| `GET /api/zip/img?path=&file=` | 压缩包内图片（含 ini 的 mod 包自动 180° 翻转输出） | 开放 |
+| `GET /api/gif?dir=&dur_ms=` | 目录内序列帧合成 GIF | 开放 |
+| `GET /api/zip/gif?path=&dur_ms=&fps=` | 压缩包内序列帧合成 GIF（`dur_ms`=包名间隔；`fps` 仅供 ini `$speed` 换算，默认 60） | 开放 |
 
 **业务类**（项目路由）：
 
@@ -240,6 +240,7 @@ config.json ──────────────────────�
 - **顶部分类可滑动导航**：`.nav-scroll` 包裹（`flex:1; min-width:0; overflow-x:auto`）内分类按钮横向滑动；搜索框窄一半（`width:100px`，聚焦 130px）（顶部分类过多时横向滑动；搜索框相应收窄）。
 - **压缩包折叠**：`galleryCollapsedZips` 持久化收起/展开。
 - **GIF 合成**：`detectFramesFromNames()` 识别连续数字帧 → 请求 `/api/gif` 或 `/api/zip/gif`；缓存 `cache-gifs/`。
+- **压缩包按 mod 语义分流（4 条规则）**：①包名带间隔（`@40ms`/`2s`，Pixiv 图包）→ 按该间隔合成 GIF、**不翻转**；②含 `.ini`（3DMigoto mod）→ 包内图片是**倒置存储**，输出前 180° 翻转（`ffmpeg -vf vflip,hflip`；群晖静态 ffmpeg 缺 png/jpg muxer，故翻转结果用单帧 GIF 承载）；③两者都无 → 不合成、原样显示；④含 ini 且是序列且 ini 有 `$speed` → 按 `1000/(fps×$speed)` 换算帧间隔合成（`fps` 为游戏渲染帧率，走 API 参数、默认 60）。`$speed` 是 3dmigoto 动画 ini 的每帧递进量（`[Present]` 里 `$frame = $frame + $speed`）。
 - **长按/右键**：~~`contextmenu` 仅 img preventDefault；无 pointerdown 监听，不影响滑动与单击~~ **已放开**（2026-09-01 注释掉 contextmenu 屏蔽与 img 的 user-select/touch-callout/user-drag，允许长按/右键保存图片）。
 - **登录 UI**：`refreshAuth()` 读 **`/api/status`**（框架端点，返回 `needsAuth`）→ 未登录只显 🔒 无 ⚙，登录后只显 ⚙ 无 🔒（退出登录入口移到设置面板内 `#settingsLogout`）。
 - **设置面板**：右侧固定浮层（`position:fixed; right:-420px→0`），折叠展开不挤压图片区域。
@@ -374,11 +375,13 @@ curl -s -o /dev/null -w '%{http_code}\n' http://10.10.10.193:8081/
 
 - 上传图片走 `POST /api/upload`（手写 multipart 解析，零依赖）→ 无 targetDir 存本地 `uploads/`，有 targetDir（登录）写真实目录；上传权限见坑⑭。
 - 压缩包索引/解析表由本画廊自足（不再依赖 downloader fileIndex.json —— 旧画廊的做法已废弃，本项目直接扫目录 + zip 内图）。
+- **待办：拆分 `server/public/app.js`（2097 行单体前端）**。现状：`render()` 圈复杂度 121、`currentScope()` 73（审计阈值 10），均远超阈值——两个函数把「目录树/分组/压缩包/GIF/灯箱/设置」全塞在一起，几乎不可测、改一处容易碰坏别处（本次压缩包分流改动就落在 `render()` 内）。审计门禁因此对该文件报 `maintainability/max-cyclomatic-complexity` blocker；本次改动先用 `audit:false` 提交（用户决定），**拆分后应恢复门禁**。拆分建议：按「目录树 / 图片网格 / 压缩包分组 / 灯箱 / 设置」切成 `public/js/*.js` 由 `index.html` 按序引入，`render()` 只做调度。
 
 ## 九、版本记录
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| — | 2026-10-08 | **压缩包图片按 mod 语义分流 + 修复 rar/7z 条目解析（4 条规则）**：此前压缩包内图片一律「按序列帧无脑合成 GIF」。现按四条规则处理：①包名带间隔（`@40ms`/`2s`，Pixiv 图包）→ 按该间隔合成 GIF、不翻转；②含 `.ini`（3DMigoto mod）→ 包内图片倒置存储，输出前 180° 翻转（`ffmpeg -vf vflip,hflip`，群晖 ffmpeg 缺 png/jpg muxer 故用单帧 GIF 承载）；③两者都无 → 不合成、原样显示；④含 ini 且是序列且 ini 有 `$speed` → 按 `1000/(fps×$speed)` 换算帧间隔合成（`$speed` 是 3dmigoto 动画 ini 的每帧递进量；`fps` 走 API 参数、默认 60）。接口变化：`/api/zip/scan` 回传 `hasIni`/`speed` 供前端门控，`/api/zip/gif` 增加 `fps` 参数，含 ini 的单图走 `/api/zip/img` 翻转。**同时修两个 rar/7z 解析 bug**：①`SEVEN_ZIP` 探测未传 `versionArgs:["i"]`、默认用 `-version`（7-Zip 系实测 exit 7）→ 7zz/7z 被判「不可用」并返回裸名，导致 rar/7z 列条目与 ini 检测全部静默失效；②`7z l` 的 Compressed 列可能为空，旧正则硬要求两个数字 → 空列的行整条丢弃（图片与 ini 一起漏检）。修复后实测真光锥包目录 279 个压缩包中 168 个识别出 ini（修复前 0）。回归测试 `test/zip-ini-gif.test.cjs`（28 项，覆盖 zip 与 7z 双分支） |
 | — | 2026-10-08 | **修复「设置→添加图片目录」无法返回上一级**：`queryRoot()` 把越界请求静默钳回 `resolveFsRoot()`（= 已配置目录的公共前缀），而只配了一个图片目录时该前缀恰好等于该目录本身 → 目录浏览器永远上不去（实测：请求 `.../[Cygames]` 仍返回 `.../賽馬娘Pretty Derby`，📁↑ 点了像坏了一样）。修法：新增浏览天花板 `resolveBrowseLimit()`（显式配置 `GALLERY_FS_ROOT`/`config.fsRoot` 时以其为界，未配置则到文件系统根）与 `browseRoot()`；`/api/directories` 增加 `opts.authed` —— 已登录按新上限浏览、未登录维持原限制（不扩大暴露面），并回传 `limit`/`clamped`/`canUp`；前端目录浏览器据 `clamped` 提示「已到最上层」、到顶禁用 ↑。回归测试 `test/dir-browser-up.test.cjs`（9 项） |
 | — | 2026-10-08 | **模板下发件入库，修复远程 auto-update 永远拉不到新版**：`server/core/` 等 8 个框架子目录与 `server/boot.cjs`、`server/lib/cjs-bootstrap.cjs` 此前被 `.gitignore` 当「组装产物」忽略；而部署端以 github 模式远程 `auto-update` 从本仓库拉代码，被忽略的文件不进仓库 = 部署端永远拿不到新版 —— `server/update/auto-update.js` 本身就是自动更新的实现，忽略它等于让它无法自更新（实测部署端停在 730 行旧版：间隔 300 秒、无失败退避）。现已入库 26 个文件；`server/update/auto-update.js` 同步为 38291 B 新版（github 模式默认间隔 3600 秒、连续失败按设定值 ×2 退避最多 3 次、不再排除 `server/boot.cjs`）；`server/public/auto-update-card.js` 同步（默认间隔 3600、上限 86400）。本 README 与 `.gitignore` 的「组装产物」措辞一并修正为「模板下发件」 |
 | — | 2026-09-20 | **同步模板统一工具探测模块**：`server/lib/gif.js`（ffmpeg 选用）、`server/lib/archive.js`（7zz→7z 回退）、`server/store/data-backup.js`（zip/unzip）改走 `server/tool/tool-detect.js`（环境变量 → `tool/` 与 `tools/` → 系统路径，每级可用性实测、失败降级）；清单新增 `server/tool/tool-detect.js` 下发条目。工具探测行为不变（找不到仍兜底系统路径/裸名），只是查找逻辑统一且多一层可用性防护 |

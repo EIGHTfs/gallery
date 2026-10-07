@@ -1367,8 +1367,11 @@
           const collapsed = collapsedZips.has(z.path);
           const group = document.createElement("div");
           group.className = "zip-group" + (collapsed ? " collapsed" : "");
-          const durMs = parseFrameMs(z.name);
+          const durMs = parseFrameMs(z.name);   // 包名带间隔（Pixiv 图包 @40ms / 2s）
           const isSeq = detectFramesFromNames(z.images.map(i => i.name));
+          // 合成条件（4 条规则）：是序列 且（包名带间隔 或 含 ini 且 ini 有 $speed）。
+          // 含 ini 的包图片由 /api/zip/img 自动翻转 180°，前端不需要处理翻转。
+          const useGif = isSeq && (durMs > 0 || (z.hasIni && z.speed > 0));
           const head = document.createElement("div");
           head.className = "zip-group-head";
           head.innerHTML = `
@@ -1386,7 +1389,7 @@
           if (!collapsed) {
             const grid = document.createElement("div");
             grid.className = "dir-grid";
-            if (isSeq) {
+            if (useGif) {
               const gifUrl = zipGifUrl(z.path, durMs);
               const gifItem = { src: gifUrl, title: t("gifTitle", { name: z.name, n: z.images.length }), name: z.name, isGif: true, frameCount: z.images.length };
               grid.appendChild(makeCard(gifItem, { dir: z.name, lbList: [gifItem] }));
