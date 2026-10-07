@@ -11,7 +11,9 @@
 "use strict";
 
 const AU_POLL_DELAY_MS = 1500;    // 重启/检查后回读状态的延迟
-const AU_DEFAULT_INTERVAL = 300;  // 拉取模式的缺省间隔（秒）
+// 拉取模式缺省间隔（秒）：1 小时。github 模式每次检查要打一次 GitHub API（有配额），
+// 而绝大多数项目每天推送不超过 3 次 —— 5 分钟一轮 99% 是白跑，故默认放到低频档。
+const AU_DEFAULT_INTERVAL = 3600;
 
 function auEl(id) {
   return document.getElementById(id);

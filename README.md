@@ -154,8 +154,11 @@ function init(deps) {
 <模板仓库>/setup.sh gallery --to <项目根>/server --check
 ```
 
-`server/core/` 等 8 个框架子目录、`server/boot.cjs`、`server/lib/cjs-bootstrap.cjs` 是组装产物，
-**不入库**——clone 后跑一次组装即可得到，勿手改（改在项目侧会被 `--check` 报不一致）。
+`server/core/` 等 8 个框架子目录、`server/boot.cjs`、`server/lib/cjs-bootstrap.cjs` 是**模板下发件**
+（权威源在模板仓库，由 `setup.sh` 按 `assemble.json` 下发到项目侧），**必须入库、不忽略**：
+部署端以 github 模式的远程 `auto-update` 从本仓库拉取代码，被忽略的文件不进仓库 = 部署端永远拿不到新版；
+`server/update/auto-update.js` 本身就是自动更新的实现，忽略它等于让它无法自更新。
+模板更新后仍走 `setup.sh` 重新组装下发，勿手改（改在项目侧会被 `--check` 报不一致）。
 
 ---
 
