@@ -35,6 +35,15 @@ function statMtime(p) {
   }
 }
 
+/** 异步 stat（探针用，语义与 statMtime 一致：失败返回 -1） */
+async function statMtimeAsync(p) {
+  try {
+    return (await fs.promises.stat(p)).mtimeMs;
+  } catch (_) {
+    return -1;
+  }
+}
+
 // 全树递归扫描：收集图片 + 记录【所有目录】的 mtime
 function recursiveScanAll(dir) {
   const images = [];
@@ -76,11 +85,19 @@ function recursiveScanAll(dir) {
 }
 
 // 探针：stat 所有已知目录（不 readdir），全同 → 缓存仍有效
-function scanCacheStillValid(cached) {
+// 2026-10-12 异步化（Step 3）：探针跑在**请求路径**上，大图库时目录上万 ⇒ 同步 stat 一遍会占满事件循环
+//   （与 gbmd 实测的「同步收尾把 /api/* 连续堵死 74 秒」同类）。改为「有界并发 + 每批让出事件循环」：
+//   总耗时不变，但期间服务可正常响应。调用方必须 await（否则拿到 Promise 恒为真 ⇒ 缓存永不失效）。
+const PROBE_CONCURRENCY = 16;
+async function scanCacheStillValid(cached) {
   if (statMtime(cached.searchPath) === -1) return false;
-  for (const [dir, m] of cached.dirMtimes) {
-    probeStatIo(1);   // 归因：探针 stat 次数（纯计数，权重记 1/次）
-    if (statMtime(dir) !== m) return false;
+  const dirs = [...cached.dirMtimes];
+  for (let i = 0; i < dirs.length; i += PROBE_CONCURRENCY) {
+    const batch = dirs.slice(i, i + PROBE_CONCURRENCY);
+    const same = await Promise.all(batch.map(async ([dir, m]) => (await statMtimeAsync(dir)) === m));
+    probeStatIo(batch.length);
+    if (same.includes(false)) return false;      // 任一目录变了 → 缓存失效
+    await new Promise((r) => setImmediate(r));   // 让出事件循环，避免长时间独占
   }
   return true;
 }
