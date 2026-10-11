@@ -53,7 +53,7 @@ function apiDirectories(query, res, opts) {
 }
 
 // GET /api/images?root=&path=&recursive=false&noCache=
-async function apiImages(query, res) {
+function apiImages(query, res) {
   const root = queryRoot(query);
   const relativePath = query.path || "";
   const recursive = query.recursive === "true";
@@ -72,12 +72,10 @@ async function apiImages(query, res) {
       const now = Date.now();
       const cached = IMAGE_SCAN_CACHE.get(searchPath);
       if (noCache || !cached || now - cached.probedAt >= IMAGE_PROBE_INTERVAL) {
-        // 2026-10-12（Step 3）：探针已异步化（有界并发 + 让出事件循环）⇒ 这里必须 await；
-        //   否则拿到的是 Promise，`!Promise` 恒为 false ⇒ 缓存永不失效（行为 bug）。
-        const stillValid = (!noCache && cached) ? await scanCacheStillValid(cached) : false;
-        const sc = stillValid
-          ? { images: cached.images, dirMtimes: cached.dirMtimes }
-          : await recursiveScanAll(searchPath);
+        const sc =
+          noCache || !cached || !scanCacheStillValid(cached)
+            ? recursiveScanAll(searchPath)
+            : { images: cached.images, dirMtimes: cached.dirMtimes };
         files = sc.images;
         IMAGE_SCAN_CACHE.set(searchPath, {
           searchPath,
@@ -226,7 +224,7 @@ function scanOneLevel(searchPath, relativePath, root) {
 
 // GET /api/dir?root=&path= — 按需加载单层目录内容
 // 思路：不再前端全量递归拉；访问哪个目录就返回哪层，从递归缓存秒取，无缓存则单层扫
-async function apiDir(query, res) {
+function apiDir(query, res) {
   const root = queryRoot(query);
   const relativePath = query.path || "";
   const searchPath = path.join(root, relativePath);
@@ -241,7 +239,7 @@ async function apiDir(query, res) {
 
     // 优先从递归扫描缓存取（秒级，无需再扫）
     const cached = IMAGE_SCAN_CACHE.get(root);
-    if (cached && await scanCacheStillValid(cached)) {
+    if (cached && scanCacheStillValid(cached)) {
       cached.probedAt = Date.now();
       const { subdirs, images } = collectFromCache(cached.images, relativePath, prefix, root);
       annotateSubdirStats(subdirs, cached.images, root);
