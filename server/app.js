@@ -44,6 +44,8 @@ const autoUpdate = require("./lib/auto-update");
 const browse = require("./routes/browse");
 const archive = require("./routes/archive");
 const gallery = require("./routes/gallery");
+// 2026-10-12：IO 监测（读/写速率 + 按 label/调用点归因），见 lib/io-monitor.js
+const ioMonitor = require("./lib/io-monitor");
 const upload = require("./routes/upload");
 const favorites = require("./routes/favorites");
 
@@ -132,6 +134,7 @@ const archiveRoutes = createRoute({
 });
 
 const galleryRoutes = createRoute({
+  "GET /io": (req, res, c) => gallery.apiIo(req, res, ctx),
   "GET /gallery": (req, res) => gallery.apiGetGallery(req, res, ctx),
   "POST /gallery": (req, res) => gallery.apiPostGallery(req, res, ctx),
 });
@@ -218,6 +221,8 @@ createServer({
   port: parseInt(process.env.PORT, 10) || 8081,
   onReady(port) {
     autoUpdate.start(config.readConfig().autoUpdate || { enabled: false });
+    // 2026-10-12：IO 探针（每 10s 采样 /proc/self/io，超 2MB/s 打日志并带最热调用点）
+    ioMonitor.start({ intervalMs: 10000, logThresholdMBps: 2 });
     console.log(`🎮 Gallery running at http://localhost:${port}  (局域网: http://<本机IP>:${port})`);
   },
 });
