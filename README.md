@@ -64,7 +64,7 @@ PID 落项目根 `<项目名>.pid`、启动前等端口真正释放、8 秒健�
 | `server/lib/util.js` | 通用件：jsonRes/streamFile/parseQuery/readMultipartUpload 等 |
 | `server/lib/auto-update.js` | 自动更新实例（引框架工厂 + 传 gallery 参数与排除项） |
 | `server/routes/browse.js` | 浏览：`/api/directories`、`/api/images`、`/api/media`、`/api/dir` |
-| `server/routes/gallery.js` | 设置读写：`GET/POST /api/gallery` |
+| `server/routes/gallery.js` | 设置读写：`GET/POST /api/gallery`、`GET /api/io`（IO 归因：byLabel + bySite，需登录） |
 | `server/routes/upload.js` | 上传（原生 handler，**绕开 createRoute 的 JSON 预读**） |
 | `server/routes/favorites.js` | 收藏增删查 |
 | `server/routes/archive.js` | 压缩包内图 / zip 内 GIF |
