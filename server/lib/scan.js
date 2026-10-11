@@ -12,6 +12,15 @@ const path = require("path");
 const { getExcludeDirs } = require("./config");
 const { formatSize } = require("./util");
 
+// 2026-10-12 IO 归因（Step 2）：扫描路径埋点。
+//   ⚠️ 站点在**创建时**固定（meter 的第一件事就是抓一次栈），之后每次调用只做一次 Map 累加 ——
+//   扫描是逐目录/逐文件调用的热路径，**绝不能在每次调用里抓栈**（大图库下是十万级调用）。
+//   bytes 语义：真实字节用文件大小；纯计数探针用 1/次（io-monitor 文档：bytes 仅用于归因对比）。
+const ioMonitor = require("./io-monitor");
+const readdirIo = ioMonitor.meter("scan:readdir", "scan.js:recursiveScanAll/readdirSync");
+const imgStatIo = ioMonitor.meter("scan:stat", "scan.js:recursiveScanAll/statSync");
+const probeStatIo = ioMonitor.meter("probe:stat", "scan.js:scanCacheStillValid/statSync");
+
 const IMG_EXT_RE = /\.(jpe?g|png|gif|webp)$/i;
 const ZIP_EXT_RE = /\.(zip|7z|rar)$/i;
 
@@ -35,6 +44,7 @@ function recursiveScanAll(dir) {
     let entries;
     try {
       entries = fs.readdirSync(d, { withFileTypes: true });
+      readdirIo(entries.length);   // 归因：本次 readdir 读到的条目数（权重=条目数，便于看「哪个根最重」）
     } catch (_) {
       return;
     }
@@ -46,6 +56,7 @@ function recursiveScanAll(dir) {
       } else if (IMG_EXT_RE.test(entry.name)) {
         try {
           const st = fs.statSync(full);
+          imgStatIo(st.size);   // 归因：图片 stat 的真实字节（谁在吃 stat 一目了然）
           images.push({
             name: entry.name,
             path: full,
@@ -68,6 +79,7 @@ function recursiveScanAll(dir) {
 function scanCacheStillValid(cached) {
   if (statMtime(cached.searchPath) === -1) return false;
   for (const [dir, m] of cached.dirMtimes) {
+    probeStatIo(1);   // 归因：探针 stat 次数（纯计数，权重记 1/次）
     if (statMtime(dir) !== m) return false;
   }
   return true;

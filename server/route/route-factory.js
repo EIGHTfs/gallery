@@ -42,7 +42,7 @@ async function parseBody(req) {
 function createRoute(handlers) {
   const table = parseRouteTable(handlers);
 
-  return async function routeHandler(req, res, url, ctx) {
+  const routeHandler = async function (req, res, url, ctx) {
     const pathname = url.pathname;
     const method = req.method;
 
@@ -75,6 +75,12 @@ function createRoute(handlers) {
     }
     return false;
   };
+
+  // 2026-10-11：把解析后的路由表挂到返回值上（**只读**，供测试/自检枚举「注册了哪些 method + path」）。
+  //   表原先只存在于闭包里，外部无从核对——项目的「路由清单不丢」测试因此失去收集入口。
+  //   调用方语义不变（返回值仍当 handler 用）；框架运行时不会读取该属性。
+  routeHandler.routes = table;
+  return routeHandler;
 }
 
 /**
