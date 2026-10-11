@@ -7,10 +7,18 @@
 
 const { jsonRes, readJsonBody } = require("../lib/util");
 const { loadConfig, saveConfig, publicConfig } = require("../lib/config");
+// 2026-10-12：IO 监测（读/写速率 + 按 label/调用点归因），见 lib/io-monitor.js
+const ioMonitor = require("../lib/io-monitor");
 
 // GET /api/gallery
 function apiGetGallery(req, res, ctx) {
   jsonRes(res, 200, publicConfig(loadConfig()));
+}
+
+// GET /api/io —— 2026-10-12：扫描/IO 归因（byLabel + bySite，站点为 file:line）
+function apiIo(req, res, ctx) {
+  if (!ctx.requireAuth(req, res)) return;   // 含本机绝对路径与调用点，不对外开放
+  jsonRes(res, 200, ioMonitor.snapshot());
 }
 
 // POST /api/gallery — 保存画廊配置（需登录）
@@ -29,4 +37,4 @@ async function apiPostGallery(req, res, ctx) {
   jsonRes(res, 200, { ok: true, ...publicConfig(cfg) });
 }
 
-module.exports = { apiGetGallery, apiPostGallery };
+module.exports = { apiGetGallery, apiPostGallery, apiIo };
