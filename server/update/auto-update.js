@@ -152,6 +152,15 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
     return baseSec * Math.pow(2, steps) * 1000;
   }
 
+  // 2026-10-12：**显式白名单** —— 优先级高于一切排除规则（含下面的 userdata-manifest 动态排除）。
+  //   用途：某些文件虽被当作「用户数据/运行态」整目录排除，但其中的规则表/模板需要随更新下发。
+  //   实例：mapping/ 整目录被 userdata-manifest 排除 ⇒ mapping/illegalChars.json 的规则更新
+  //   永远到不了部署端（部署端日志实测「跳过(排除): mapping」）。
+  //   只影响 github/tar 模式的复制；git 模式本就是 git pull，不受影响。
+  const GITHUB_ALLOWLIST = [
+    "mapping/illegalChars.json",   // 非法字符/转义归一化规则表（数据驱动，需随更新下发）
+  ];
+
   // github 模式下禁止覆盖的运行态/敏感文件（相对项目根，前缀或精确匹配）
   // 排除规则分三类（isExcluded 按类匹配，避免「以 . 开头一律当后缀」的误判）：
   const GITHUB_EXCLUDE = [
@@ -191,6 +200,7 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
     excludePaths: GITHUB_EXCLUDE,
     excludeDirs: GITHUB_EXCLUDE_DIR,
     excludeSuffix: GITHUB_EXCLUDE_SUFFIX,
+    allowPaths: GITHUB_ALLOWLIST,          // 显式白名单：优先于一切排除规则
     loadExtraExcludes: () => loadUserdataExcludes(),
     onSkip: (rel) => _log("跳过(排除): " + rel),
   });
