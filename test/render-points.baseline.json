@@ -1,65 +1,65 @@
 {
   "file": "app.js",
-  "count": 70,
+  "count": 71,
   "points": [
     {
       "kind": "breadcrumb-render",
       "func": "favCat",
-      "line": 1211,
+      "line": 1277,
       "text": "renderBreadcrumb(favoriteImages, favoriteImages.length);"
     },
     {
       "kind": "breadcrumb-render",
       "func": "favCat",
-      "line": 1236,
+      "line": 1302,
       "text": "renderBreadcrumb(guestImgs, guestImgs.length);"
     },
     {
       "kind": "breadcrumb-render",
       "func": "flushWrap",
-      "line": 1609,
+      "line": 1675,
       "text": "renderBreadcrumb(images, totalImgs);"
     },
     {
       "kind": "breadcrumb-render",
       "func": "renderBreadcrumb",
-      "line": 1613,
+      "line": 1681,
       "text": "function renderBreadcrumb(items, totalImgs) {"
     },
     {
       "kind": "dirTree-render",
       "func": "favCat",
-      "line": 1308,
+      "line": 1374,
       "text": "renderDirTree();"
     },
     {
       "kind": "dirTree-render",
       "func": "favCat",
-      "line": 1320,
+      "line": 1386,
       "text": "renderDirTree();"
     },
     {
       "kind": "dirTree-render",
       "func": "init",
-      "line": 448,
+      "line": 450,
       "text": "renderDirTree();"
     },
     {
       "kind": "dirTree-render",
       "func": "init",
-      "line": 455,
+      "line": 457,
       "text": "renderDirTree();"
     },
     {
       "kind": "dirTree-render",
       "func": "lbNext",
-      "line": 1748,
+      "line": 1816,
       "text": "renderDirTree();"
     },
     {
       "kind": "dirTree-render",
       "func": "lbNext",
-      "line": 1763,
+      "line": 1831,
       "text": "renderDirTree();"
     },
     {
@@ -71,151 +71,157 @@
     {
       "kind": "dirTree-render",
       "func": "renderDirectories",
-      "line": 2044,
+      "line": 2112,
       "text": "renderDirTree();"
     },
     {
       "kind": "dirTree-render",
       "func": "renderDirTree",
-      "line": 722,
+      "line": 765,
       "text": "function renderDirTree() {"
     },
     {
       "kind": "dirTree-render",
       "func": "renderNavBtns",
-      "line": 672,
+      "line": 715,
       "text": "renderDirTree();"
     },
     {
       "kind": "dirTree-render",
       "func": "renderNavBtns",
-      "line": 682,
+      "line": 725,
       "text": "renderDirTree();"
     },
     {
       "kind": "dirTree-render",
       "func": "renderNavBtns",
-      "line": 692,
+      "line": 735,
       "text": "renderDirTree();"
     },
     {
       "kind": "dirTree-render",
       "func": "switchDir",
-      "line": 883,
+      "line": 926,
       "text": "renderDirTree();"
     },
     {
       "kind": "gallery-clear",
       "func": "favCat",
-      "line": 1216,
+      "line": 1282,
       "text": "gallery.innerHTML = \"\";"
     },
     {
       "kind": "gallery-clear",
       "func": "favCat",
-      "line": 1258,
+      "line": 1324,
       "text": "gallery.innerHTML = \"\";"
     },
     {
       "kind": "gallery-clear",
       "func": "render",
-      "line": 1162,
+      "line": 1228,
       "text": "gallery.innerHTML = \"\";"
     },
     {
       "kind": "gallery-rebuild",
       "func": "confirmAdd",
-      "line": 2089,
+      "line": 2157,
       "text": "renderCategories(); renderNavBtns(); renderDirTree(); renderDirectories(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "favCat",
-      "line": 1281,
+      "line": 1347,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "favCat",
-      "line": 1309,
+      "line": 1375,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "favCat",
-      "line": 1321,
+      "line": 1387,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "favCat",
-      "line": 1336,
+      "line": 1402,
+      "text": "render();"
+    },
+    {
+      "kind": "gallery-rebuild",
+      "func": "firstTargets",
+      "line": 664,
+      "text": "render();                                             // 首屏：当前这一层先出来"
+    },
+    {
+      "kind": "gallery-rebuild",
+      "func": "firstTargets",
+      "line": 678,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "flushWrap",
-      "line": 1489,
+      "line": 1555,
       "text": "renderDirTree(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "flushWrap",
-      "line": 1508,
+      "line": 1574,
       "text": "renderDirTree(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "flushWrap",
-      "line": 1584,
+      "line": 1650,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "handleFiles",
-      "line": 2249,
+      "line": 2322,
       "text": "renderUserImages(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "handleFiles",
-      "line": 2264,
+      "line": 2337,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "init",
-      "line": 449,
+      "line": 451,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "init",
-      "line": 456,
+      "line": 458,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "lbNext",
-      "line": 1764,
+      "line": 1832,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "lbNext",
-      "line": 1767,
+      "line": 1835,
       "text": "searchInput.addEventListener(\"input\", e => { searchQuery = e.target.value; render(); });"
     },
     {
       "kind": "gallery-rebuild",
-      "func": "loadAPIImages",
-      "line": 635,
-      "text": "render();"
-    },
-    {
-      "kind": "gallery-rebuild",
       "func": "loadDirList",
-      "line": 2152,
+      "line": 2220,
       "text": "renderDirectories(); renderNavBtns(); renderDirTree(); render();"
     },
     {
@@ -227,157 +233,157 @@
     {
       "kind": "gallery-rebuild",
       "func": "navBack",
-      "line": 844,
+      "line": 887,
       "text": "saveNav(); renderNavBtns(); renderDirTree(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "navForward",
-      "line": 853,
+      "line": 896,
       "text": "saveNav(); renderNavBtns(); renderDirTree(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "render",
-      "line": 1159,
+      "line": 1225,
       "text": "function render() {  // dsh-skip-func-length 既有渲染主流程，拆分易引入显示回归，待独立重构"
     },
     {
       "kind": "gallery-rebuild",
       "func": "renderBreadcrumb",
-      "line": 1647,
+      "line": 1715,
       "text": "renderNavBtns(); renderDirTree(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "renderCategories",
-      "line": 1995,
+      "line": 2063,
       "text": "renderNavBtns(); renderDirTree(); renderDirectories(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "renderCategories",
-      "line": 2002,
+      "line": 2070,
       "text": "renderNavBtns(); renderDirTree(); renderDirectories(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "renderCategories",
-      "line": 2013,
+      "line": 2081,
       "text": "renderCategories(); renderNavBtns(); renderDirTree(); renderDirectories(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "renderChild",
-      "line": 1362,
+      "line": 1428,
       "text": "if (activeDir) { currentPath = sd.relPath; saveNav(); pushNavHistory(); renderDirTree(); render(); }"
     },
     {
       "kind": "gallery-rebuild",
       "func": "renderChild",
-      "line": 1370,
+      "line": 1436,
       "text": "if (activeDir) { currentPath = sd.relPath; saveNav(); pushNavHistory(); renderDirTree(); render(); }"
     },
     {
       "kind": "gallery-rebuild",
       "func": "renderChild",
-      "line": 1381,
+      "line": 1447,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "renderDirectories",
-      "line": 2037,
+      "line": 2105,
       "text": "renderDirTree(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "renderDirectories",
-      "line": 2052,
+      "line": 2120,
       "text": "renderDirectories(); renderDirTree(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "renderNavBtns",
-      "line": 673,
+      "line": 716,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "renderNavBtns",
-      "line": 683,
+      "line": 726,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "renderNavBtns",
-      "line": 693,
+      "line": 736,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "renderUserImages",
-      "line": 2069,
+      "line": 2137,
       "text": "renderUserImages(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "subKids",
-      "line": 1406,
+      "line": 1472,
       "text": "currentPath = sd.relPath; saveNav(); renderDirTree(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "subKids",
-      "line": 1444,
+      "line": 1510,
       "text": "currentPath = sd.relPath; saveNav(); pushNavHistory(); renderDirTree(); render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "switchDir",
-      "line": 884,
+      "line": 927,
       "text": "render();"
     },
     {
       "kind": "gallery-rebuild",
       "func": "toggleFavorite",
-      "line": 570,
+      "line": 572,
       "text": "if (activeFilter === \"favorites\") render();"
     },
     {
       "kind": "lightbox-update",
       "func": "done",
-      "line": 1711,
+      "line": 1779,
       "text": "updateLightbox(lbList);                        // 换图 + transform 归零（视觉无感）"
     },
     {
       "kind": "lightbox-update",
       "func": "filename",
-      "line": 1812,
+      "line": 1880,
       "text": "if (p) toggleFavorite(p).then(() => updateLightbox(lbList));"
     },
     {
       "kind": "lightbox-update",
       "func": "openLightbox",
-      "line": 1659,
+      "line": 1727,
       "text": "updateLightbox(lbList);"
     },
     {
       "kind": "lightbox-update",
       "func": "updateLightbox",
-      "line": 1663,
+      "line": 1731,
       "text": "function updateLightbox(items) {"
     },
     {
       "kind": "navBtns-render",
       "func": "init",
-      "line": 447,
+      "line": 449,
       "text": "renderNavBtns();"
     },
     {
       "kind": "navBtns-render",
       "func": "lbNext",
-      "line": 1760,
+      "line": 1828,
       "text": "renderNavBtns();"
     },
     {
@@ -389,37 +395,37 @@
     {
       "kind": "navBtns-render",
       "func": "renderNavBtns",
-      "line": 642,
+      "line": 685,
       "text": "function renderNavBtns() {"
     },
     {
       "kind": "navBtns-render",
       "func": "renderNavBtns",
-      "line": 671,
+      "line": 714,
       "text": "renderNavBtns();"
     },
     {
       "kind": "navBtns-render",
       "func": "renderNavBtns",
-      "line": 681,
+      "line": 724,
       "text": "renderNavBtns();"
     },
     {
       "kind": "navBtns-render",
       "func": "renderNavBtns",
-      "line": 691,
+      "line": 734,
       "text": "renderNavBtns();"
     },
     {
       "kind": "navBtns-render",
       "func": "switchDir",
-      "line": 882,
+      "line": 925,
       "text": "renderNavBtns();"
     },
     {
       "kind": "navBtns-render",
       "func": "toggleFavorite",
-      "line": 568,
+      "line": 570,
       "text": "renderNavBtns();"
     }
   ]
