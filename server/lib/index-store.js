@@ -417,6 +417,10 @@ async function walkWithIndex(category, root, opts) {
   // 流式载入本分类条目（内存只保留条目本身）；不再整份解析 + 整份重写单文件
   const entries = options.persist === false ? new Map() : loadAllJsonl(category);
   const exclude = new Set((options.excludeDirs || []).map((s) => String(s)));
+  // skipDirs：本次遍历**不下钻**的子树（绝对路径）。
+  // 用途：前端「当前目录优先」时第一步已单独取过该子树，第二步请求整根时把它跳过 ⇒
+  //   两个请求合计仍是一次完整遍历（总时间≈原来一次请求），但最需要的那部分提前 0.3s 到手。
+  const skipDirs = new Set((options.skipDirs || []).map((p) => path.resolve(String(p))));
   const images = [];
   let dirsSeen = 0;
   let hits = 0;
@@ -460,7 +464,9 @@ async function walkWithIndex(category, root, opts) {
     if (!it) continue;                          // 防御：条目数组里可能有空洞/坏行
     if (it.t === "d") {
       if (exclude.has(it.name)) continue;       // 与既有实现一致：跳过 @eaDir 等排除项
-      stack.push({ dir: path.join(frame.dir, it.name), items: null, idx: 0 });
+      const childDir = path.join(frame.dir, it.name);
+      if (skipDirs.has(childDir)) continue;     // 已由第一步单独取过的子树：不下钻（不重复遍历、不重复产出）
+      stack.push({ dir: childDir, items: null, idx: 0 });
     } else if (it.t === "f" && it.img) {
       images.push(it.img);
     }

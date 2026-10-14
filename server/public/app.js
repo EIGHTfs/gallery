@@ -629,12 +629,15 @@
       ? directories.filter(d => d.path === onlyRoot)
       : directories;
 
-    /** 取一层：root 指定根，path 指定相对子路径（空=根层），recursive 决定是否整棵 */
-    async function fetchLayer(dir, relPath, recursive) {
+    /** 取一层：root 指定根，path 指定相对子路径（空=根层），recursive 决定是否整棵
+     *  skipRel：本次**不下钻**的相对子树（第二步整根取数时跳过第一步已取过的当前目录，
+     *           保证两个请求合计仍是一次完整遍历 —— 总耗时≈原来一次请求，不额外增加） */
+    async function fetchLayer(dir, relPath, recursive, skipRel) {
       try {
         const qs = `/images?root=${encodeURIComponent(dir.path)}`
           + (relPath ? `&path=${encodeURIComponent(relPath)}` : '')
           + (recursive ? '&recursive=true' : '')
+          + (skipRel ? `&skip=${encodeURIComponent(skipRel)}` : '')
           + (noCache ? '&noCache=true' : '');
         return await window.API.apiGet(qs);
       } catch (e) {
@@ -665,9 +668,29 @@
     // 提示改成「当前这层」的张数 —— 不再一上来就报全局几十万张（那会让人以为要等很久）
     showNotification(t("loadedImages", { n: firstMap.size }), "info");
 
+    /** 当前视图「可见内容」的指纹：直接取 render 实际用的那份派生结果
+     *  （currentScope() 就是 render() 内部算 {subDirs, images} 的那个函数）
+     *  子目录卡片上显示的张数是聚合数（含更深层），所以把每个可见子目录的 count 也计入指纹 ——
+     *  这样「深层新增了一张图」也会被识别为可见内容变化。 */
+    function scopeFingerprint() {
+      try {
+        const sc = currentScope();
+        const dirs = (sc.subDirs || []).map(d => `${d.relPath || d.name}:${d.count || 0}`).join(',');
+        const imgs = (sc.images || []).map(i => i.relPath || i.path).join(',');
+        return `${dirs}|${imgs}`;
+      } catch (_) {
+        return "unknown";   // 取不到指纹时保守处理（当作「可能变了」）
+      }
+    }
+    const firstFp = scopeFingerprint();
+
     // ── 第二步：剩下全部（走索引；首次未索引时较慢）──
+    // 对「第一步已单独取过的那个当前目录子树」传 skip ⇒ 服务端不下钻它，避免重复遍历：
+    //   两个请求合计 = 一次完整遍历（总耗时≈原来一次请求），而当前目录 0.3s 级先到手。
+    const step1Rel = (activeDir && !onlyRoot) ? (currentPath || "") : "";
     const fullMap = new Map();
-    const results = await Promise.all(targets.map(dir => fetchLayer(dir, "", true)));
+    const results = await Promise.all(targets.map(dir =>
+      fetchLayer(dir, "", true, (step1Rel && dir.path === activeDir) ? step1Rel : "")));
     if (runId !== loadRunId) return;                       // 同上
     for (const imgData of results) {
       if (!imgData) continue;
@@ -677,7 +700,7 @@
 
     loading = false;
     showNotification(t("loadedImages", { n: apiImages.length }), "success");
-    // ┌─ 待办：这一步的 render() 是「整屏重建」，会带来滚动位置回顶（方案 2 设计概要，尚未实施）────────
+    // ┌─ 本步已按「增量合并」实现：可见内容没变就不重建 DOM；确实变了才重建，并保住滚动位置 ────
     // │ 现状（代码事实）：render() 入口即 `gallery.innerHTML = ""`（js/browse/render.js:59 / 113 / 155，
     // │   分别对应 收藏视图 / 游客视图 / 常规视图 三个分支），随后由 currentScope() 依据 apiImages
     // │   重新派生 {subDirs, images} 并重建排序条、分组 section、图片行 .dir-grid、卡片，
@@ -697,10 +720,21 @@
     // │   3) 只在「同一视图补数据」时恢复；用户切目录/切筛选（activeDir/currentPath/activeFilter 变化）
     // │      时**不恢复**（切视图本来就该回到顶部），判据：进入本函数时快照这三个状态、渲染后比对；
     // │   4) 验收：进某目录 → 滚到中部 → 等第二步完成 → 滚动位置不变，且第一屏图片无重复闪烁。
-    // │ 备选（体验更好但风险更高，未采用）：方案 1 增量合并 —— 第二步只把新出现的深层图片/新分组
-    // │   插进现有 DOM（参照 updateFavoriteMarks 的就地更新思路），不整屏重建；需真渲染回归验证。
+    // │ 已采用的增量判据：第一步渲染后取一次可见指纹 firstFp（上面 scopeFingerprint），
+    // │   第二步合并后再取一次 → 相同则完全不重建 DOM；不同才走下面的重建分支（并套用上面的保滚动做法）。
     // └────────────────────────────────────────────────────────────────────────────
-    render();
+    const afterFp = scopeFingerprint();
+    if (afterFp === firstFp) {
+      // 可见内容没变（典型：你停在某个目录里，第二步补的是其它目录/更深层的图，当前视图用不到）
+      // ⇒ 不重建画廊 DOM：零重画、零闪烁、滚动位置不动；只刷新侧栏目录树（不碰画廊）
+      try { renderDirTree(); } catch (_) { /* 侧栏刷新失败不影响浏览 */ }
+    } else {
+      // 可见内容确实变了（典型：停在「全部」或某层的聚合数变化）⇒ 该重建，但保住滚动位置
+      const keepTop = gallery.scrollTop;
+      render();
+      gallery.scrollTop = keepTop;
+      requestAnimationFrame(() => { gallery.scrollTop = keepTop; });   // 懒加载布局稳定后再校正一次
+    }
   }
 
   /* ─── Nav buttons: one per category ─── */

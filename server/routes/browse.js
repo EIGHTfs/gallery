@@ -109,7 +109,14 @@ async function apiImages(query, res) {
           break;
         }
       }
-      const sc = await idx.walkWithIndex(categoryForPath, searchPath, { excludeDirs: Array.from(getExcludeDirs()) });
+      // skip：本次不下钻的相对子树（前端两步加载用）——第一步已单独取过它，第二步整根请求跳过它，
+      //   于是「两个请求合计 = 一次完整遍历」，总耗时≈原来的一次请求，而当前目录提前到手。
+      const skipRel = query.skip ? String(query.skip) : "";
+      const skipDirs = skipRel ? [path.join(searchPath, skipRel)] : [];
+      const sc = await idx.walkWithIndex(categoryForPath, searchPath, {
+        excludeDirs: Array.from(getExcludeDirs()),
+        skipDirs,
+      });
       files = sc.images;
       IMAGE_SCAN_CACHE.set(searchPath, {
         searchPath,
