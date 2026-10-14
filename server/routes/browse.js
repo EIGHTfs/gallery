@@ -109,7 +109,7 @@ async function apiImages(query, res) {
           break;
         }
       }
-      const sc = idx.walkWithIndex(categoryForPath, searchPath, { excludeDirs: Array.from(getExcludeDirs()) });
+      const sc = await idx.walkWithIndex(categoryForPath, searchPath, { excludeDirs: Array.from(getExcludeDirs()) });
       files = sc.images;
       IMAGE_SCAN_CACHE.set(searchPath, {
         searchPath,

@@ -412,7 +412,7 @@ function getDirEntry(category, dir, opts) {
  * 变化过的目录才做一次单层扫描并回写该段。
  * 返回 { images, dirsSeen, hits, scans }（hits/scans 用于日志与自检）
  */
-function walkWithIndex(category, root, opts) {
+async function walkWithIndex(category, root, opts) {
   const options = opts || {};
   // 流式载入本分类条目（内存只保留条目本身）；不再整份解析 + 整份重写单文件
   const entries = options.persist === false ? new Map() : loadAllJsonl(category);
@@ -440,20 +440,30 @@ function walkWithIndex(category, root, opts) {
     return entry;
   }
 
-  function walk(dir) {
-    dirsSeen++;
-    const entry = entryOf(dir);
-    for (const it of entry.items || []) {
-      if (it.t === "d") {
-        if (exclude.has(it.name)) continue;          // 与既有实现一致：跳过 @eaDir 等排除项
-        walk(path.join(entry.dir, it.name));         // 就地递归 ⇒ 顺序与 recursiveScanAll 相同
-      } else if (it.t === "f" && it.img) {
-        images.push(it.img);
-      }
+  // 显式帧栈 + 定期让出事件循环：既保持「readdir 顺序 + 就地递归」的产出顺序（与 recursiveScanAll 逐项同序），
+  //   又不会长时间占死事件循环（此前纯同步递归会把服务器堵到首页 HTML 都发不出去）。
+  const YIELD_EVERY = 64;                     // 每处理 64 个目录让出一次（与 scan.js 的既有做法一致）
+  const stack = [{ dir: path.resolve(String(root)), items: null, idx: 0 }];
+  while (stack.length) {
+    const frame = stack[stack.length - 1];
+    if (frame.items === null) {
+      dirsSeen++;
+      const entry = entryOf(frame.dir);
+      frame.items = entry.items || [];
+      frame.idx = 0;
+      if (dirsSeen % YIELD_EVERY === 0) await new Promise((r) => setImmediate(r));
+    } else if (frame.idx >= frame.items.length) {
+      stack.pop();
+      continue;
+    }
+    const it = frame.items[frame.idx++];
+    if (it.t === "d") {
+      if (exclude.has(it.name)) continue;       // 与既有实现一致：跳过 @eaDir 等排除项
+      stack.push({ dir: path.join(frame.dir, it.name), items: null, idx: 0 });
+    } else if (it.t === "f" && it.img) {
+      images.push(it.img);
     }
   }
-
-  walk(path.resolve(String(root)));
 
   // 遍历期间只在内存里改，收尾一次性写盘（避免每目录 open→rename 造成的句柄堆积与 O(n²) 重写）
   if (scans > 0 && options.persist !== false) {
