@@ -11,7 +11,22 @@ const fs = require("fs");
 const path = require("path");
 
 const { jsonRes, streamFile, formatSize } = require("../lib/util");
-const { queryRoot, resolveFsRoot, browseRoot, getExcludeDirs } = require("../lib/config");
+const { queryRoot, resolveFsRoot, browseRoot, getExcludeDirs, loadConfig } = require("../lib/config");
+
+// 图片响应缓存时长（秒）——走配置 mediaCacheMaxAge（不硬编码）。
+// 只在首次请求时读一次配置并缓存住，避免每张图片都读配置文件（保持零新增 IO）。
+let MEDIA_MAX_AGE;
+function mediaMaxAge() {
+  if (MEDIA_MAX_AGE === undefined) {
+    try {
+      const v = loadConfig().mediaCacheMaxAge;
+      MEDIA_MAX_AGE = typeof v === "number" && v >= 0 ? v : null; // null ⇒ 交给 streamFile 默认值
+    } catch (_) {
+      MEDIA_MAX_AGE = null;
+    }
+  }
+  return MEDIA_MAX_AGE === null ? undefined : MEDIA_MAX_AGE;
+}
 const {
   IMG_EXT_RE,
   IMAGE_SCAN_CACHE,
@@ -258,14 +273,16 @@ async function apiDir(query, res) {
 }
 
 // GET /api/media?file= — 按路径输出图片
-function apiMedia(query, res) {
+function apiMedia(query, res, reqHeaders) {
   const filePath = query.file ? decodeURIComponent(query.file) : "";
   if (!filePath || !fs.existsSync(filePath)) {
     res.writeHead(404);
     res.end("Not found");
     return;
   }
-  streamFile(res, filePath);
+  // 2026-10-14：带上请求头以支持条件请求（If-None-Match / If-Modified-Since ⇒ 304 零字节）；
+  // 缓存时长优先取配置 mediaCacheMaxAge（不硬编码），读不到则由 streamFile 兜底。
+  streamFile(res, filePath, { reqHeaders: reqHeaders || {}, maxAge: mediaMaxAge() });
 }
 
 module.exports = { apiDirectories, apiImages, apiDir, apiMedia };

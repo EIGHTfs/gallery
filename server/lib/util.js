@@ -35,19 +35,77 @@ const MIME_TYPES = {
   ".woff2": "font/woff2",
 };
 
+// 图片/文件缓存策略（2026-10-14 实测修复）：
+//   故障：/api/media 原来只发 `Cache-Control: no-cache`，且**没有 ETag / Last-Modified**。
+//   no-cache 的语义是「每次都必须回源校验」，而没有任何校验器可校验 ⇒ 浏览器只能**整份重新下载**
+//   ⇒ 表现为「每次刷新都要重新加载图片」。
+//   修法：给资源一个稳定指纹（ETag = size-mtimeMs，文件被替换即变化），允许缓存，
+//   并支持 If-None-Match / If-Modified-Since ⇒ 命中回 304（零字节）。
+//   思路参考 ai-work-archive 的 media-persist-cache（「mtime-size 指纹失效」），但落在标准 HTTP 层。
+const DEFAULT_CACHE_MAX_AGE = 3600; // 秒（1 小时）；与静态资源策略 core/app.js 的 CACHE_MAX_AGE 同口径。
+// 取值权衡：太短 ⇒ 刷新仍会发大量条件请求（虽只 304）；太长 ⇒ 图片被替换后看到旧图的时间变久。
+// 1 小时是折中（1 小时内刷新零请求；文件被替换最迟 1 小时可见，强刷立即生效），
+// 需要更长可改配置 mediaCacheMaxAge（例如 86400）。
+
+/** 资源指纹：size + mtimeMs（十六进制，短且可读） */
+function etagOf(st) {
+  return '"' + st.size.toString(16) + "-" + Math.floor(st.mtimeMs).toString(16) + '"';
+}
+
+/** If-None-Match 匹配：支持 `*`、逗号列表、弱校验 `W/` 前缀（RFC 9110） */
+function ifNoneMatchHit(headerVal, etag) {
+  for (const raw of String(headerVal).split(",")) {
+    const t = raw.trim();
+    if (t === "*" || t === etag || t.replace(/^W\//, "") === etag) return true;
+  }
+  return false;
+}
+
 // 流式输出任意文件（图片/归档条目等大文件不占内存）
-function streamFile(res, filePath, statusCode, headers) {
+// 兼容两种调用（旧调用点无需改动）：
+//   旧签名：streamFile(res, filePath, statusCode, headers)
+//   新签名：streamFile(res, filePath, { statusCode, headers, reqHeaders, maxAge })
+function streamFile(res, filePath, a, b, c) {
+  const o = a && typeof a === "object" ? a : { statusCode: a, headers: b || {}, reqHeaders: c || {} };
+  const statusCode = o.statusCode || 200;
+  const extraHeaders = o.headers || {};
+  const reqHeaders = o.reqHeaders || {};
+  const maxAge = o.maxAge != null ? o.maxAge : DEFAULT_CACHE_MAX_AGE;
   fs.stat(filePath, (err, st) => {
     if (err || !st.isFile()) {
-      res.writeHead(statusCode || 404);
+      res.writeHead(statusCode === 200 ? 404 : statusCode);
       res.end("Not found");
       return;
     }
     const ext = path.extname(filePath).toLowerCase();
-    const ct = (headers && headers["Content-Type"]) || MIME_TYPES[ext] || "application/octet-stream";
-    const h = { "Content-Type": ct, "Cache-Control": "no-cache" };
+    const ct = extraHeaders["Content-Type"] || MIME_TYPES[ext] || "application/octet-stream";
+    const etag = etagOf(st);
+    const lastModified = new Date(st.mtimeMs).toUTCString();
+    const cacheControl = "public, max-age=" + maxAge + ", must-revalidate";
+    // 条件请求：If-None-Match 优先于 If-Modified-Since（RFC 9110）
+    const inm = reqHeaders["if-none-match"];
+    const ims = reqHeaders["if-modified-since"];
+    let notModified = false;
+    if (inm) {
+      notModified = ifNoneMatchHit(inm, etag);
+    } else if (ims) {
+      const t = Date.parse(ims);
+      notModified = !isNaN(t) && Math.floor(st.mtimeMs / 1000) * 1000 <= t;
+    }
+    if (notModified) {
+      // 304：不带响应体，但仍回校验器与缓存策略，让浏览器续用本地副本
+      res.writeHead(304, { ETag: etag, "Last-Modified": lastModified, "Cache-Control": cacheControl });
+      res.end();
+      return;
+    }
+    // 【原代码】const h = { "Content-Type": ct, "Cache-Control": "no-cache" };
+    // 【改为】允许缓存 + 带校验器（no-cache 且无校验器会迫使浏览器每次重下整份）
+    const h = Object.assign(
+      { "Content-Type": ct, "Cache-Control": cacheControl, ETag: etag, "Last-Modified": lastModified },
+      extraHeaders
+    );
     if (st.size) h["Content-Length"] = st.size;
-    res.writeHead(statusCode || 200, h);
+    res.writeHead(statusCode, h);
     fs.createReadStream(filePath).pipe(res);
   });
 }
@@ -153,6 +211,7 @@ function formatSize(bytes) {
 module.exports = {
   jsonRes,
   streamFile,
+  DEFAULT_CACHE_MAX_AGE,
   parseQuery,
   readJsonBody,
   readMultipartUpload,

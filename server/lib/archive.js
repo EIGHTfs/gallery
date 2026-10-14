@@ -10,6 +10,7 @@ const zlib = require("zlib");
 const { execFileSync } = require("child_process");
 
 const { IMG_EXT_RE } = require("./scan");
+const { DEFAULT_CACHE_MAX_AGE } = require("./util");
 const { getTool } = require("../tool/tool-detect.js");
 
 // 7z/7zz 选用：环境变量 > 项目工具目录（tool/ 或 tools/）> 系统路径；
@@ -335,6 +336,27 @@ function imageContentType(name) {
   return "image/jpeg";
 }
 
+// 归档条目统一响应（2026-10-14 新增）
+// 背景：归档条目原来写死 `Cache-Control: no-cache` ⇒ 每次刷新都要从压缩包里重新解出并整份重传。
+// 指纹取「压缩包 stat + 条目内容长度」——压缩包被替换（换图/重新打包）即失效，不会一直吃旧图。
+// max-age 用 util 的默认值（与静态资源同口径），不在此硬编码。
+function sendArchiveEntry(res, archivePath, name, data) {
+  const h = {
+    "Content-Type": imageContentType(name),
+    "Cache-Control": "public, max-age=" + DEFAULT_CACHE_MAX_AGE + ", must-revalidate",
+    "Content-Length": data.length,
+  };
+  try {
+    const st = fs.statSync(archivePath);
+    h.ETag = '"' + st.size.toString(16) + "-" + Math.floor(st.mtimeMs).toString(16) + "-" + data.length.toString(16) + '"';
+    h["Last-Modified"] = new Date(st.mtimeMs).toUTCString();
+  } catch (_) {
+    /* stat 失败：退化为只有缓存策略，不影响输出 */
+  }
+  res.writeHead(200, h);
+  res.end(data);
+}
+
 // 流式输出压缩包内图片（适配原始 http res 对象）
 function streamArchiveImage(res, archivePath, entryName) {
   const ext = path.extname(archivePath).toLowerCase();
@@ -351,8 +373,9 @@ function streamArchiveImage(res, archivePath, entryName) {
       res.end("read failed");
       return;
     }
-    res.writeHead(200, { "Content-Type": imageContentType(e.name), "Cache-Control": "no-cache" });
-    res.end(data);
+    // 【原代码】res.writeHead(200, { "Content-Type": imageContentType(e.name), "Cache-Control": "no-cache" });
+    // 【原代码】res.end(data);
+    sendArchiveEntry(res, archivePath, e.name, data);
     return;
   }
   try {
@@ -360,8 +383,9 @@ function streamArchiveImage(res, archivePath, entryName) {
       maxBuffer: 64 * 1024 * 1024,
       timeout: 30000,
     });
-    res.writeHead(200, { "Content-Type": imageContentType(entryName), "Cache-Control": "no-cache" });
-    res.end(buf);
+    // 【原代码】res.writeHead(200, { "Content-Type": imageContentType(entryName), "Cache-Control": "no-cache" });
+    // 【原代码】res.end(buf);
+    sendArchiveEntry(res, archivePath, entryName, buf);
   } catch (e) {
     res.writeHead(500);
     res.end("extract failed");

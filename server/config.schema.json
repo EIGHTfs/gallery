@@ -1,6 +1,7 @@
 {
   "port": { "type": "number", "default": 8081 },
   "sessionHours": { "type": "number", "default": 720 },
+  "mediaCacheMaxAge": { "type": "number", "default": 3600 },
   "title": { "type": "string", "default": "Gallery" },
   "favicon": { "type": "string", "default": "" },
   "fsRoot": { "type": "string", "default": "" },

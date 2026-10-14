@@ -123,7 +123,7 @@ const browseRoutes = createRoute({
   "GET /directories": (req, res, c) => browse.apiDirectories(c.query, res, { authed: isAuthed(req) }),
   "GET /images": (req, res, c) => browse.apiImages(c.query, res),
   "GET /dir": (req, res, c) => browse.apiDir(c.query, res),
-  "GET /media": (req, res, c) => browse.apiMedia(c.query, res),
+  "GET /media": (req, res, c) => browse.apiMedia(c.query, res, req.headers),
 });
 
 const archiveRoutes = createRoute({

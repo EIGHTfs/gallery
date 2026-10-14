@@ -10,7 +10,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { execFileSync } = require("child_process");
 
-const { jsonRes } = require("./util");
+const { jsonRes, streamFile } = require("./util");
 const { IMG_EXT_RE } = require("./scan");
 const { SEVEN_ZIP, listArchiveImages, listZipEntriesNode, readZipEntryData, hasIniEntry, readIniSpeed, readArchiveEntryData } = require("./archive");
 const { detectTool } = require("../tool/tool-detect.js");
@@ -102,8 +102,11 @@ function _runFfmpeg(args) {
 }
 
 function _sendGif(res, gifFile) {
-  res.writeHead(200, { "Content-Type": "image/gif", "Cache-Control": "no-cache" });
-  fs.createReadStream(gifFile).pipe(res);
+  // 2026-10-14：改走 streamFile —— 自动带 ETag/Last-Modified 与缓存策略。
+  // 【原代码】res.writeHead(200, { "Content-Type": "image/gif", "Cache-Control": "no-cache" });
+  // 【原代码】fs.createReadStream(gifFile).pipe(res);
+  // 原因：写死 no-cache ⇒ 浏览器每次刷新都要重新下载整份 GIF。
+  streamFile(res, gifFile, { statusCode: 200, headers: { "Content-Type": "image/gif" } });
 }
 
 // 目录序列帧 → 合成 GIF（缓存 cache-gifs/<hash>.gif）并流式返回
@@ -320,8 +323,10 @@ function flipArchiveImage(archivePath, entryName, res) {
       }
     }
   }
-  res.writeHead(200, { "Content-Type": "image/gif", "Cache-Control": "no-cache" });
-  fs.createReadStream(out).pipe(res);
+  // 2026-10-14：同 _sendGif，改走 streamFile 以带 ETag/Last-Modified 与缓存策略
+  // 【原代码】res.writeHead(200, { "Content-Type": "image/gif", "Cache-Control": "no-cache" });
+  // 【原代码】fs.createReadStream(out).pipe(res);
+  streamFile(res, out, { statusCode: 200, headers: { "Content-Type": "image/gif" } });
 }
 
 module.exports = {
