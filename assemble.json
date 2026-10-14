@@ -58,6 +58,10 @@
     "templates/_gallery/server/routes/upload.js": "server/routes/upload.js",
     "templates/_gallery/test/dir-browser-up.test.cjs": "test/dir-browser-up.test.cjs",
     "templates/_gallery/test/zip-ini-gif.test.cjs": "test/zip-ini-gif.test.cjs",
+  "templates/_gallery/test/gif-rule-dryrun.test.cjs": "test/gif-rule-dryrun.test.cjs",
+  "templates/_gallery/test/render-points.test.cjs": "test/render-points.test.cjs",
+  "templates/_gallery/test/render-points.baseline.json": "test/render-points.baseline.json",
+  "scripts/extract-render-points.mjs": "scripts/extract-render-points.mjs",
     "templates/js/tool/tool-detect.js": "server/tool/tool-detect.js",
     "templates/js/server/lib/auto-update.js": "server/lib/auto-update.js"
   },
