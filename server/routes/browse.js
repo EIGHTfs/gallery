@@ -91,30 +91,35 @@ async function apiImages(query, res) {
     let files = [];
 
     if (recursive) {
-      // 后端扫描缓存懒刷新：探针节流（noCache 强制跳过缓存，用于上传后立即刷新）
+      // 2026-10-14：取数改走**按需索引**（index-store.walkWithIndex）——
+      //   · 每个目录先查索引：目录 mtime 未变 ⇒ 直接复用（不读盘）；变化过才单层重扫并回写该段
+      //   · 产出与 server/lib/scan.js::recursiveScanAll **逐项同序**（已在「文件/子目录交错」夹具上逐项比对通过），
+      //     故前端渲染结果不变（这是本改造的硬约束）
+      //   · noCache 语义保留：跳过外层进程内缓存标记，重新走一次索引（索引内部仍按 mtime 判命中）
       const noCache = query.noCache === "true";
-      const now = Date.now();
-      const cached = IMAGE_SCAN_CACHE.get(searchPath);
-      if (noCache || !cached || now - cached.probedAt >= IMAGE_PROBE_INTERVAL) {
-        // 2026-10-12：recursiveScanAll 已改为 async（同步 I/O + 粗粒度让出）⇒ 这里必须 await，
-        //   否则拿到的是 Promise，`!Promise` 恒为 false ⇒ 缓存永不失效（行为 bug）。
-        //   探针 scanCacheStillValid 仍是同步函数（未异步化）⇒ 不需要 await。
-        const stillValid = (!noCache && cached) ? scanCacheStillValid(cached) : false;
-        const sc = stillValid
-          ? { images: cached.images, dirMtimes: cached.dirMtimes }
-          : await recursiveScanAll(searchPath);
-        files = sc.images;
-        IMAGE_SCAN_CACHE.set(searchPath, {
-          searchPath,
-          images: files,
-          dirMtimes: sc.dirMtimes,
-          ts: now,
-          probedAt: now,
-        });
-      } else {
-        files = cached.images;
-        cached.probedAt = now;
+      const idx = require("../lib/index-store");
+      const cfgForIndex = loadConfig();
+      // 该目录所属分类：取「已配置目录中作为其前缀」的那一个（找不到则归入 uncategorized）
+      const dirsCfg = (cfgForIndex && cfgForIndex.directories) || [];
+      let categoryForPath = "uncategorized";
+      for (const d of dirsCfg) {
+        const p = d && d.path ? path.resolve(String(d.path)) : null;
+        if (p && (searchPath === p || searchPath.startsWith(p + path.sep))) {
+          categoryForPath = d.category || "uncategorized";
+          break;
+        }
       }
+      const sc = idx.walkWithIndex(categoryForPath, searchPath, { excludeDirs: Array.from(getExcludeDirs()) });
+      files = sc.images;
+      IMAGE_SCAN_CACHE.set(searchPath, {
+        searchPath,
+        images: files,
+        dirMtimes: new Map(),   // 新鲜度改由索引的按目录 mtime 判定（见 index-store）
+        ts: Date.now(),
+        probedAt: Date.now(),
+        viaIndex: true,
+        noCache,
+      });
     } else {
       const entries = fs.readdirSync(searchPath, { withFileTypes: true });
       for (const d of entries) {
