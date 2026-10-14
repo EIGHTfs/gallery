@@ -243,16 +243,17 @@ function resolveImagesPerRow(cfg) {
   return DEFAULT_IMAGES_PER_ROW;
 }
 
-// 分层索引深度（2026-10-14 确认策略）：全量索引只扫「配置根往下 N 层目录」内的文件，更深层进入时按需扫。
-// 优先级：.env GALLERY_SCAN_MAX_DEPTH → config.scanMaxDepth → 默认 2。超大根（如 34 万张图）必须靠它兜住。
-const DEFAULT_SCAN_MAX_DEPTH = 2;
+// 分层索引深度（2026-10-14 修订）：**默认 0 = 不限制**（保持既有行为：所有层级都索引）。
+// 起因：默认 2 会让配置根下超过 2 层的文件夹（如「角色」目录）不再进索引 ⇒ 前端不显示（回归）。
+// 需要给超大根限深时，用 .env GALLERY_SCAN_MAX_DEPTH 显式设置（例：=2 只扫两层，更深处进入时按需扫）。
+const DEFAULT_SCAN_MAX_DEPTH = 0;   // 0 = 不限制
 function resolveScanMaxDepth(cfg) {
   loadDotEnvOnce();
   const c = cfg || loadConfig();
   const env = parseInt(process.env.GALLERY_SCAN_MAX_DEPTH, 10);
-  if (Number.isFinite(env) && env >= 0) return env;
+  if (Number.isFinite(env) && env > 0) return env;
   const v = parseInt(c.scanMaxDepth, 10);
-  if (Number.isFinite(v) && v >= 0) return v;
+  if (Number.isFinite(v) && v > 0) return v;
   return DEFAULT_SCAN_MAX_DEPTH;
 }
 

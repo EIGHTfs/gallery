@@ -47,9 +47,10 @@ const SCAN_YIELD_EVERY = 500;       // 每处理这么多个目录让出一次�
 const INFLIGHT_SCAN = new Map();    // searchPath -> Promise（单飞复用）
 
 async function recursiveScanAll(dir, opts) {
-  // 分层索引（2026-10-14）：只扫「dir 往下 maxDepth 层目录」内的文件，更深层不深入 ——
-  // 进入那些子目录时再由浏览路径按需扫描（searchPath 作为新起点）。默认深度走 .env GALLERY_SCAN_MAX_DEPTH。
-  const maxDepth = (opts && Number.isFinite(opts.maxDepth)) ? opts.maxDepth : require("./config").resolveScanMaxDepth();
+  // 分层索引（2026-10-14）：maxDepth 为 0 表示**不限制**（默认，保持既有行为）；
+  // 设成 N>0 时只扫「dir 往下 N 层目录」内的文件，更深层进入时再按需扫描。
+  const rawDepth = (opts && Number.isFinite(opts.maxDepth)) ? opts.maxDepth : require("./config").resolveScanMaxDepth();
+  const maxDepth = rawDepth > 0 ? rawDepth : Infinity;
   if (INFLIGHT_SCAN.has(dir)) return INFLIGHT_SCAN.get(dir);   // 单飞：并发请求共享同一轮扫描
   const job = (async () => {
     const images = [];
