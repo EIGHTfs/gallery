@@ -193,6 +193,9 @@ function upsertDirEntryJsonl(category, key, entry) {
     }
     if (!replaced) fs.writeSync(out, line + "\n");
   } finally {
+    // 必须关掉输入与输出 fd：此前漏关 inFd ⇒ 每扫一个目录泄漏一个 fd，遍历大目录树会把
+    // 进程 fd 耗尽并报 EMFILE（实测部署端 /zip/scan 全部失败、页面无图）
+    try { if (typeof inFd !== "undefined" && inFd !== null) fs.closeSync(inFd); } catch (_) { /* ignore */ }
     try { fs.closeSync(out); } catch (_) { /* ignore */ }
   }
   fs.renameSync(tmp, file);
