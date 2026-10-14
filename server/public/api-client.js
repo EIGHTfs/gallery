@@ -6,6 +6,38 @@ const API_BASE = '/api';
 // 登录 session 通过 HttpOnly cookie 携带，同源自动携带
 const FETCH_OPT = { credentials: 'same-origin' };
 
+// ── 会话 cookie 兜底（2026-10-14 实测故障）──────────────────────────────
+// Cookie 按 host 隔离且**不看端口**：同一台机器换地址打开（多网卡 IP / 主机名 / 异地组网）
+// 就带不上 cookie，前端一遇 401 便跳登录页，表现为「刚登录又要登录」。
+// 服务端 extractToken() 本就支持 Authorization: Bearer（server/auth/auth.js），
+// 故登录时存下服务端返回的 token，此后所有同源 /api 请求自动补上 —— cookie 丢了也能免登录。
+const AUTH_TOKEN_KEY = 'auth-token';
+function readAuthToken() {
+  try { return localStorage.getItem(AUTH_TOKEN_KEY) || ''; } catch (_) { return ''; }
+}
+function saveAuthToken(t) {
+  try { t ? localStorage.setItem(AUTH_TOKEN_KEY, t) : localStorage.removeItem(AUTH_TOKEN_KEY); } catch (_) {}
+}
+// 只包装同源 /api 请求，其余（静态资源、跨站）原样放行
+(function wrapFetchForAuth() {
+  const orig = window.fetch;
+  if (typeof orig !== 'function') return;
+  window.fetch = function (input, init) {
+    try {
+      const url = typeof input === 'string' ? input : (input && input.url) || '';
+      const sameOrigin = url.startsWith('/') || url.startsWith(location.origin);
+      if (sameOrigin && url.indexOf('/api/') !== -1) {
+        const t = readAuthToken();
+        if (t) {
+          init = Object.assign({}, init || {});
+          init.headers = Object.assign({}, init.headers || {}, { Authorization: 'Bearer ' + t });
+        }
+      }
+    } catch (_) { /* 兜底失败不影响原请求 */ }
+    return orig.call(this, input, init);
+  };
+})();
+
 // Convert a relative API url (/api/media?file=...) to absolute (同源直接返回)
 function apiUrl(p) {
   if (!p) return p;
@@ -79,7 +111,11 @@ async function apiLogin(password) {
     credentials: 'include',
     body: JSON.stringify({ password }),
   });
-  return { ok: res.ok, status: res.status, data: res.status === 200 ? await res.json() : null };
+  const data = res.status === 200 ? await res.json() : null;
+  // 2026-10-14：保存服务端返回的 token 作为会话 cookie 兜底（服务端 extractToken 支持 Bearer）。
+  //   cookie 按 host 隔离且不看端口，换访问地址就带不上，表现为「刚登录又要登录」。
+  if (data && data.token) saveAuthToken(data.token);
+  return { ok: res.ok, status: res.status, data };
 }
 
 // 删除收藏
@@ -99,6 +135,8 @@ async function apiDelete(path, body) {
 }
 async function apiLogout() {
   try { await fetch(API_BASE + '/logout', { method: 'POST', credentials: 'include' }); } catch (_) {}
+  // 2026-10-14：登出后清掉本地 token，否则 Bearer 兜底会把刚登出的会话又「自动登录」回来
+  saveAuthToken('');
 }
 
 // Check if API is available

@@ -25,6 +25,12 @@ async function auApi(path, method, body) {
     opt.headers["Content-Type"] = "application/json";
     opt.body = JSON.stringify(body);
   }
+  // 2026-10-14：带上本地 token 作为会话 cookie 的兜底（服务端 extractToken 支持 Authorization: Bearer）。
+  //   跨项目共享件，故自己读 localStorage，不依赖加载顺序（本文件可能先于 app.js 执行）。
+  try {
+    const t = localStorage.getItem("auth-token");
+    if (t) opt.headers["Authorization"] = "Bearer " + t;
+  } catch (_) {}
   const res = await fetch(path, opt);
   let payload = null;
   try { payload = await res.json(); } catch (_) { /* 非 JSON 响应 */ }
