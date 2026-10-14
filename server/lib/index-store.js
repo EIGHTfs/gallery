@@ -106,37 +106,46 @@ function dirMtimeMs(dir) {
 }
 
 /**
- * 单层扫描：只列举 dir 自身的图片（不递归、不进子目录）
- * 返回 { images:[...], dirMtime }，图片对象形状与 scan.js 完全一致
+ * 单层扫描：只列举 dir 自身的条目（不递归、不进子目录）
+ * 关键：返回的 `items` **保留 readdir 顺序**，且把「文件」与「子目录」按原顺序交错记录 ——
+ * 既有实现（server/lib/scan.js::recursiveScanAll）是「readdir 顺序 + 就地递归」，
+ * 子目录里的图会插在该目录后续文件之前；要保证前端显示零变化，必须能原样重放这个顺序。
+ * items: [{ t:'f', img:{name,path,url,size,modified} } | { t:'d', name }]
  */
 function scanDirShallow(dir) {
   const d = path.resolve(String(dir));
+  const items = [];
   const images = [];
   let entries = [];
   try {
     entries = fs.readdirSync(d, { withFileTypes: true });
   } catch (_) {
-    return { images, dirMtime: 0 };
+    return { items, images, dirMtime: 0 };
   }
   for (const entry of entries) {
+    if (entry.isDirectory()) {
+      items.push({ t: "d", name: entry.name }); // 子目录：只记名字，递归时再展开（顺序位保留）
+      continue;
+    }
     if (!entry.isFile() || !IMG_EXT_RE.test(entry.name)) continue;
     const full = path.join(d, entry.name);
     try {
       const st = fs.statSync(full);
-      images.push({
+      const img = {
         name: entry.name,
         path: full,
         url: `/api/media?file=${encodeURIComponent(full)}`,
         size: formatSize(st.size),
         modified: st.mtime.toISOString(),
-      });
+      };
+      items.push({ t: "f", img });
+      images.push(img);
     } catch (_) {
       /* 扫描期文件被删/无权限：跳过该文件 */
     }
   }
-  // 保持与既有扫描一致的顺序：按文件名排序（readdir 顺序在不同文件系统上不一致）
-  images.sort((a, b) => a.name.localeCompare(b.name, "zh"));
-  return { images, dirMtime: dirMtimeMs(d) };
+  // 刻意不排序：排序会改变前端分组/卡片顺序（属显示变化）
+  return { items, images, dirMtime: dirMtimeMs(d) };
 }
 
 /**
@@ -158,12 +167,12 @@ function getDirEntry(category, dir, opts) {
   const cached = store.dirs[key];
   if (cached && mtime && cached.dirMtime === mtime) {
     // 命中：目录未变化 ⇒ 不读盘
-    return { dir: abs, dirMtime: mtime, images: cached.images || [], hit: true };
+    return { dir: abs, dirMtime: mtime, items: cached.items || [], images: cached.images || [], hit: true };
   }
 
   // 未命中/过期：只扫这一个目录（单层）
   const scanned = scanDirShallow(abs);
-  const entry = { dir: abs, dirMtime: scanned.dirMtime, images: scanned.images };
+  const entry = { dir: abs, dirMtime: scanned.dirMtime, items: scanned.items, images: scanned.images };
   if (options.persist !== false) {
     store.dirs[key] = entry;
     store.updatedAt = new Date().toISOString();
@@ -173,7 +182,68 @@ function getDirEntry(category, dir, opts) {
       /* 落盘失败不影响本次浏览（下次访问重建即可） */
     }
   }
-  return { dir: abs, dirMtime: entry.dirMtime, images: entry.images, hit: false };
+  return { dir: abs, dirMtime: entry.dirMtime, items: entry.items, images: entry.images, hit: false };
+}
+
+/**
+ * 按需递归枚举（**显示零变化的关键**）：
+ * 与 server/lib/scan.js::recursiveScanAll 同为「readdir 顺序 + 就地递归」，因此产出的图片数组
+ * 与既有实现**逐项同序**；区别只在数据来源 —— 每个目录先查索引（mtime 未变则直接复用，不读盘），
+ * 变化过的目录才做一次单层扫描并回写该段。
+ * 返回 { images, dirsSeen, hits, scans }（hits/scans 用于日志与自检）
+ */
+function walkWithIndex(category, root, opts) {
+  const options = opts || {};
+  const file = indexPathOf(category);
+  const store = readJsonSafe(file, null) || { version: 1, category: category || "uncategorized", dirs: {} };
+  if (!store.dirs || typeof store.dirs !== "object") store.dirs = {};
+  const exclude = new Set((options.excludeDirs || []).map((s) => String(s)));
+  const images = [];
+  let dirsSeen = 0;
+  let hits = 0;
+  let scans = 0;
+  let dirty = false;
+
+  function entryOf(dir) {
+    const abs = path.resolve(dir);
+    const mtime = dirMtimeMs(abs);
+    const cached = store.dirs[dirKey(abs)];
+    if (cached && mtime && cached.dirMtime === mtime) {
+      hits++;
+      return cached;
+    }
+    const scanned = scanDirShallow(abs);
+    const entry = { dir: abs, dirMtime: scanned.dirMtime, items: scanned.items, images: scanned.images };
+    store.dirs[dirKey(abs)] = entry;
+    dirty = true;
+    scans++;
+    return entry;
+  }
+
+  function walk(dir) {
+    dirsSeen++;
+    const entry = entryOf(dir);
+    for (const it of entry.items || []) {
+      if (it.t === "d") {
+        if (exclude.has(it.name)) continue;          // 与既有实现一致：跳过 @eaDir 等排除项
+        walk(path.join(entry.dir, it.name));         // 就地递归 ⇒ 顺序与 recursiveScanAll 相同
+      } else if (it.t === "f" && it.img) {
+        images.push(it.img);
+      }
+    }
+  }
+
+  walk(path.resolve(String(root)));
+
+  if (dirty && options.persist !== false) {
+    store.updatedAt = new Date().toISOString();
+    try {
+      writeJsonAtomic(file, store);
+    } catch (_) {
+      /* 落盘失败不影响本次返回（下次访问重建该段即可） */
+    }
+  }
+  return { images, dirsSeen, hits, scans };
 }
 
 /** 手动重建（保留但不自动跑）：按目录 / 按分类 / 全量；批量导入后一次性补全用 */
@@ -209,6 +279,7 @@ module.exports = {
   dirMtimeMs,
   scanDirShallow,
   getDirEntry,
+  walkWithIndex,
   rebuild,
   IMG_EXT_RE,
 };
