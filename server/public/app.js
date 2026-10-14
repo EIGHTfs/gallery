@@ -432,6 +432,8 @@
       categories   = Array.isArray(data.categories) ? data.categories : [];
       directories  = Array.isArray(data.directories) ? data.directories : [];
       window.__GALLERY_FS_ROOT = data.fsRoot || "/";
+      // 每行图片数量（服务端下发：.env GALLERY_IMAGES_PER_ROW → /api/gallery；前端不硬编码，取不到时兜底 20）
+      window.__GALLERY_IMAGES_PER_ROW = Number(data.imagesPerRow) > 0 ? Number(data.imagesPerRow) : 20;
     } catch (e) {
       console.warn("API init failed:", e);
     }
@@ -1156,6 +1158,29 @@
   }
 
   /* dsh-skip-func-length：既有渲染主流程，拆分易引入显示回归，待独立重构 */
+  /** 每行图片数量（2026-10-14 新增）：把每个图片行容器 `.dir-grid` 的子卡片按 N 张切块，
+   *  包进 `.dir-rows`（竖向多行）结构 —— 行数 = ceil(张数 / N)。
+   *  为什么放在 render 末尾做一次后处理：图片行有 6 个生成点（叶子文件夹/分组/当前文件夹/压缩包分组…），
+   *  统一后处理可一次覆盖全部，且不动任何卡片尺寸语义（卡片样式与尺寸完全不变，只是分行）。
+   *  N 由服务端下发（.env GALLERY_IMAGES_PER_ROW），前端不硬编码；<=1 行时原样不动。 */
+  function applyImageRowWrap(perRow) {
+    const n = Number(perRow) > 0 ? Math.floor(Number(perRow)) : 20;
+    const grids = Array.from(document.querySelectorAll("#gallery .dir-grid"));
+    for (const gridEl of grids) {
+      const kids = Array.from(gridEl.children);
+      if (kids.length <= n) continue;              // 不足一行：保持原样（单行横滚）
+      const wrap = document.createElement("div");
+      wrap.className = "dir-rows";
+      for (let i = 0; i < kids.length; i += n) {
+        const row = document.createElement("div");
+        row.className = "dir-grid";
+        for (const k of kids.slice(i, i + n)) row.appendChild(k);
+        wrap.appendChild(row);
+      }
+      gridEl.parentNode.replaceChild(wrap, gridEl);
+    }
+  }
+
   function render() {  // dsh-skip-func-length 既有渲染主流程，拆分易引入显示回归，待独立重构
     // “增加收藏功能🩷，预设个不可删改的收藏分类，点了收藏的图片都会在里面平铺”
     if (activeFilter === "favorites") {
@@ -1607,6 +1632,8 @@
     }
 
     renderBreadcrumb(images, totalImgs);
+    // 2026-10-14 新增：按「每行图片数量」把每个图片行切块成多行（行数 = ceil(张数/N)）
+    applyImageRowWrap(window.__GALLERY_IMAGES_PER_ROW);
   }
 
   /* ─── Breadcrumb (hierarchical navigation) ─── */

@@ -70,6 +70,12 @@
 .folder-meta { font-size: 11px; color: var(--muted); }
 
 /* ─── 图片行：横向一行可左右滑动（不换行），图片更高 ─── */
+/* 每行图片数量（2026-10-14）：同一文件夹图片按 N 张切块成多行 —— 外层竖向容器，内层仍是原来的行样式 .dir-grid */
+.dir-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
 .dir-grid {
   display: flex;
   flex-direction: row;
