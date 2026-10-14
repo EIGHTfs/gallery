@@ -157,7 +157,7 @@
   let favoriteImages = [];       // 收藏图片列表 [{src, name, title, cat, ...}]
   let favoriteSrcs = new Set();  // 收藏 src 集合（快速查找）
   let authedUser = false;        // 是否登录（登录后才能点收藏）
-  let galleryTitle  = "崩坏3";
+  let galleryTitle  = "";   // 标题只由配置下发（/api/gallery → data.title）；不写死任何默认标题
   let favicon       = "";   // 由设置页决定：emoji 或图片 URL
   let loading       = false;
 
@@ -427,7 +427,7 @@
     await refreshAuth();
     try {
       const data = await window.API.apiGet("/gallery");
-      galleryTitle = data.title || "崩坏3";
+      galleryTitle = data.title || "";   // 标题只认配置下发；无配置时留空（由页面/浏览器标题兜底），不写死默认标题
       favicon      = data.favicon || "";
       categories   = Array.isArray(data.categories) ? data.categories : [];
       directories  = Array.isArray(data.directories) ? data.directories : [];
@@ -2240,7 +2240,12 @@
       targetCat = "guest";
     } else {
       // 登录后：可以上传到其他目录（若当前在真实目录，则写文件到该目录；否则存本地）
-      targetCat = activeFilter !== "all" && activeFilter !== "guest" ? activeFilter : (categories[0]?.name || "bh3");
+      // 分类只从配置来（categories 由 /api/gallery 下发）；拿不到就明确报错终止，不写死任何默认分类
+      targetCat = activeFilter !== "all" && activeFilter !== "guest" ? activeFilter : (categories[0]?.name || "");
+      if (!targetCat) {
+        window.alert("请先在设置里创建分类，或先进入某个分类再上传");
+        return;
+      }
       if (activeDir) targetDir = activeDir;
     }
     for (const file of files) {
