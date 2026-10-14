@@ -1,6 +1,6 @@
 {
   "port": { "type": "number", "default": 8081 },
-  "sessionHours": { "type": "number", "default": 72 },
+  "sessionHours": { "type": "number", "default": 720 },
   "title": { "type": "string", "default": "Gallery" },
   "favicon": { "type": "string", "default": "" },
   "fsRoot": { "type": "string", "default": "" },
