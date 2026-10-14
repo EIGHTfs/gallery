@@ -32,6 +32,88 @@
   let expandedGroups = new Set(); // 手动展开的分组（默认折叠，key=分组名）
   let collapsedTreeNodes = new Set(); // “侧边栏只能展开不能折叠”→ 手动折叠的侧边栏节点（key=rootPath|relPath）
 
+  /* ─── 秒出图优化（2026-10-14）────────────────────────────
+     背景（实测）：总览页一次渲染 1000+ 张卡片（.dir-section 553 个、内容高 36 万像素）；
+     图片虽有 loading="lazy"，但首屏仍要等 lazy 判定 + 串行解码（单张 1920×1080 解码均 57ms）；
+     且刷新后**不记滚动位置**、URL 里也没有位置信息 ⇒ 回到顶部、丢浏览位置。
+     这里做三件不依赖缩略图的事：① 首屏图片提优先级并预热解码 ② 位置写进 URL
+     ③ 滚动位置落 localStorage 并在启动时恢复。
+     注意：这不降低单张原图的解码成本（那由图片像素决定），只是把能并行的并行、能跳过的跳过。 */
+  const SCROLL_KEY = "galleryScroll";
+
+  /** 首屏（含一屏余量）图片：解除 lazy、提高优先级、主动 decode() 预热，避免串行解码拖慢出图 */
+  function warmFirstScreen(limit) {
+    try {
+      const imgs = document.querySelectorAll("#gallery .card img");
+      const vh = window.innerHeight || 800;
+      let k = 0;
+      for (const img of imgs) {
+        const r = img.getBoundingClientRect();
+        if (r.top < vh * 1.5 && r.bottom > -200) {
+          img.loading = "eager";
+          try { img.fetchPriority = "high"; } catch (_) {}
+          if (img.decode) img.decode().catch(() => {});
+          if (++k >= (limit || 12)) break;
+        }
+      }
+    } catch (_) { /* 预热失败不影响显示 */ }
+  }
+
+  /** 把当前位置写进 URL（可分享、刷新可回到原处）；replaceState 不污染后退历史 */
+  function syncUrlState() {
+    try {
+      const p = new URLSearchParams(location.search);
+      if (activeDir) p.set("dir", activeDir); else p.delete("dir");
+      if (currentPath) p.set("path", currentPath); else p.delete("path");
+      if (activeFilter && activeFilter !== "all") p.set("cat", activeFilter); else p.delete("cat");
+      const qs = p.toString();
+      history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + (location.hash || ""));
+    } catch (_) { /* 不支持 history 时忽略 */ }
+  }
+
+  /** 启动时按 URL 恢复位置（优先于 localStorage 的上次位置） */
+  function restoreFromUrl() {
+    try {
+      const p = new URLSearchParams(location.search);
+      if (!p.has("dir") && !p.has("path") && !p.has("cat")) return false;
+      const dir = p.get("dir");
+      if (dir && directories.some((d) => d.path === dir)) {
+        activeDir = dir;
+        currentPath = p.get("path") || "";
+      } else if (!dir) {
+        activeDir = null;
+        currentPath = p.get("path") || "";
+      }
+      const cat = p.get("cat");
+      if (cat) activeFilter = cat;
+      return true;
+    } catch (_) { return false; }
+  }
+
+  /** 记住滚动位置（节流写入，避免滚动时频繁写 localStorage） */
+  function bindScrollMemory() {
+    const g = document.getElementById("gallery");
+    if (!g || g.__scrollBound) return;
+    g.__scrollBound = true;
+    let t = null;
+    g.addEventListener("scroll", () => {
+      if (t) return;
+      t = setTimeout(() => {
+        t = null;
+        try { localStorage.setItem(SCROLL_KEY, String(g.scrollTop)); } catch (_) {}
+      }, 200);
+    }, { passive: true });
+  }
+
+  /** 恢复上次滚动位置（图片是 lazy 的，跳过去后再由浏览器按可视区加载） */
+  function restoreScrollPos() {
+    try {
+      const y = Number(localStorage.getItem(SCROLL_KEY) || 0);
+      const g = document.getElementById("gallery");
+      if (g && y > 0) g.scrollTop = y;
+    } catch (_) {}
+  }
+
   function loadCollapsed() {
     try {
       const z = JSON.parse(localStorage.getItem(ZIPS_KEY) || '[]');
@@ -302,11 +384,14 @@
     render();
     await loadAPIImages();
     restoreNav();
+    restoreFromUrl();  // URL 里的位置优先（可分享 / 刷新回到原处）；没有参数时沿用 restoreNav 的结果
+    bindScrollMemory();  // 持续记录滚动位置，供下次刷新恢复
     pushNavHistory();  // “顶部导航栏前后加< >实现后退前进”→ 初始状态入历史栈，导航后才能后退
     await loadFavorites();  // 加载收藏列表
     await loadUploaded();   // 加载服务端 uploads/ 目录图片（游客分类）
     renderDirTree();
     render();
+    restoreScrollPos();  // 2026-10-14：渲染完再恢复滚动位置（图片 lazy，跳过去后浏览器按可视区加载）
   }
 
   /* ─── 游客分类图片（服务端 uploads/ 目录，重启后仍可见）─── */
@@ -1408,6 +1493,10 @@
     }
 
     renderBreadcrumb(images, totalImgs);
+    // 2026-10-14 秒出图优化（不依赖缩略图）：首屏图片提优先级并预热解码；位置写进 URL；
+    // 滚动位置由 bindScrollMemory() 持续记录（在 init 里绑定），下次启动会恢复。
+    warmFirstScreen();
+    syncUrlState();
   }
 
   /* ─── Breadcrumb (hierarchical navigation) ─── */
