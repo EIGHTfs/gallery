@@ -239,6 +239,31 @@ function loadAllJsonl(category) {
 }
 
 /**
+ * 一次性写出整份 JSONL（遍历结束后调用一次）：
+ * 目的：消除「每改一个目录就 open→写→rename 一次」的巨额文件操作 ——
+ *   实测该模式在一次遍历中会产生 1600+ 个「已删除临时文件」句柄（fd 打满 ⇒ EMFILE ⇒ 服务不可用），
+ *   且 O(n²) 重写。改为遍历期间只在内存里改，收尾一次性写盘（一次 open/close/rename）。
+ */
+function writeAllJsonl(category, map) {
+  const file = jsonlPathFor(category);
+  const dir = path.dirname(file);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = path.join(dir, "." + path.basename(file) + "." + process.pid + ".tmp");
+  const header = JSON.stringify({ version: 1, category: category || "uncategorized", updatedAt: new Date().toISOString() });
+  const out = fs.openSync(tmp, "w");
+  try {
+    fs.writeSync(out, header + "\n");
+    for (const entry of map.values()) {
+      fs.writeSync(out, JSON.stringify(entry) + "\n");
+    }
+  } finally {
+    try { fs.closeSync(out); } catch (_) { /* ignore */ }
+  }
+  fs.renameSync(tmp, file);
+  return map.size;
+}
+
+/**
  * 读分片（带旧版一次性迁移）：
  * 旧版是「一个分类一个 index.json」；若分片不存在而旧文件在，则从旧文件中**只取该分片前缀下的条目**
  * 写入分片，并删除旧文件（其余分片按需重建 —— 代价可控，避免一直背着一个数百 MB 的大文件）。
@@ -407,12 +432,9 @@ function walkWithIndex(category, root, opts) {
       return cached;
     }
     const scanned = scanDirShallow(abs);
-    const entry = { dir: abs, dirMtime: scanned.dirMtime, items: scanned.items, images: scanned.images };
+    const entry = { k: key, dir: abs, dirMtime: scanned.dirMtime, items: scanned.items, images: scanned.images };
     if (options.persist !== false) {
-      try {
-        upsertDirEntryJsonl(category, key, entry);   // 只写这一条（逐行替换/追加；内存只留一行）
-      } catch (_) { /* 落盘失败不影响本次返回 */ }
-      entries.set(key, entry);
+      entries.set(key, entry);   // 只在内存里改；遍历结束后一次性写盘（见函数末尾 writeAllJsonl）
     }
     scans++;
     return entry;
@@ -432,6 +454,15 @@ function walkWithIndex(category, root, opts) {
   }
 
   walk(path.resolve(String(root)));
+
+  // 遍历期间只在内存里改，收尾一次性写盘（避免每目录 open→rename 造成的句柄堆积与 O(n²) 重写）
+  if (scans > 0 && options.persist !== false) {
+    try {
+      writeAllJsonl(category, entries);
+    } catch (_) {
+      /* 落盘失败不影响本次返回（下次访问重建即可） */
+    }
+  }
 
   return { images, dirsSeen, hits, scans };
 }
