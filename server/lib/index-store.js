@@ -527,6 +527,11 @@ module.exports = {
   scanDirShallow,
   getDirEntry,
   walkWithIndex,
+  // 流式读写与路径（供回归测试与运维脚本使用；跨块多字节解码的正确性由它们保证）
+  jsonlPathFor,
+  readDirEntryJsonl,
+  upsertDirEntryJsonl,
+  loadAllJsonl,
   rebuild,
   IMG_EXT_RE,
 };

@@ -62,6 +62,7 @@
   "templates/_gallery/test/gif-rule-dryrun.test.cjs": "test/gif-rule-dryrun.test.cjs",
   "templates/_gallery/test/render-points.test.cjs": "test/render-points.test.cjs",
   "templates/_gallery/test/render-points.baseline.json": "test/render-points.baseline.json",
+  "templates/_gallery/test/index-store-utf8.test.cjs": "test/index-store-utf8.test.cjs",
   "scripts/extract-render-points.mjs": "scripts/extract-render-points.mjs",
     "templates/js/tool/tool-detect.js": "server/tool/tool-detect.js",
     "templates/js/server/lib/auto-update.js": "server/lib/auto-update.js"
