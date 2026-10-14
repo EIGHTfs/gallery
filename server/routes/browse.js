@@ -32,7 +32,6 @@ const {
   IMAGE_SCAN_CACHE,
   IMAGE_PROBE_INTERVAL,
   statMtime,
-  recursiveScanAll,
   scanCacheStillValid,
 } = require("../lib/scan");
 
