@@ -292,6 +292,10 @@
     } catch (e) {
       console.warn("API init failed:", e);
     }
+    // 刷新时直接呈现上次位置：restoreNav() 只依赖 localStorage 与已加载的 directories。
+    // 必须放在**任何 render() 之前**——实测 loadLang() 内部会触发一次渲染（138ms 时视图为 "(null)|"），
+    // 若放在 loadLang() 之后，首屏仍会先闪一下主页再跳回上次位置。
+    restoreNav();
     await loadLang(lang);
     document.querySelector(".logo-text").textContent = galleryTitle;
     galleryTitleInput.value = galleryTitle;
@@ -301,7 +305,7 @@
     renderDirTree();
     render();
     await loadAPIImages();
-    restoreNav();
+    // restoreNav();  // 【原位置】在首次 render() 之后 ⇒ 先画主页再跳，已提前到上面（保留痕迹，勿删）
     pushNavHistory();  // “顶部导航栏前后加< >实现后退前进”→ 初始状态入历史栈，导航后才能后退
     await loadFavorites();  // 加载收藏列表
     await loadUploaded();   // 加载服务端 uploads/ 目录图片（游客分类）
