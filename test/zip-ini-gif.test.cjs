@@ -93,10 +93,28 @@ if (!packs.length) {
 }
 
 console.log("═══ 前端/路由接线守卫 ═══");
-ok("前端门控：序列 且（包名间隔 或 ini 有 $speed）", () => {
+ok("规则模块：mod 合成 / 图包合成 两条规则各自成立", () => {
+  const R = require(path.join(ROOT, "server", "lib", "rule", "gif-rule.js"));
+  const seq = ["f_001.png", "f_002.png", "f_003.png"];
+  // 规则一 · mod 合成：含 ini 且有 $speed 才合成，且声明翻转
+  assert.strictEqual(R.modGifRule({ names: seq, hasIni: true, speed: 0.5 }).synth, true, "mod 规则未命中 ini+$speed");
+  assert.strictEqual(R.modGifRule({ names: seq, hasIni: true, speed: 0 }).synth, false, "mod 规则不该在 $speed=0 时命中");
+  assert.strictEqual(R.modGifRule({ names: seq, hasIni: true, speed: 0.5 }).flip, true, "mod 规则未声明翻转");
+  // 规则二 · 图包合成：包名带间隔才合成，且不翻转
+  assert.strictEqual(R.imagePackGifRule({ names: seq, packageName: "pixiv@40ms" }).synth, true, "图包规则未命中包名间隔");
+  assert.strictEqual(R.imagePackGifRule({ names: seq, packageName: "普通包名" }).synth, false, "图包规则不该在无间隔时命中");
+  assert.strictEqual(R.imagePackGifRule({ names: seq, packageName: "pixiv@40ms" }).flip, false, "图包规则不该翻转");
+  // 两条都不命中 → 不合成（卡面式数字编号命名）
+  const cardLike = ["tex_support_card_10001.png", "tex_support_card_10002.png", "tex_support_card_10003.png"];
+  assert.strictEqual(R.shouldSynthZip({ names: cardLike, packageName: "卡面", hasIni: false, speed: 0 }).synth, false, "两条规则都不命中却合成了");
+  // 目录一律不合成（口径）
+  assert.strictEqual(R.shouldSynthDir(), false, "目录不应合成 GIF");
+});
+ok("前端门控改走规则模块（压缩包 shouldSynthZip / 目录 shouldSynthDir）", () => {
   const ui = fs.readFileSync(path.join(ROOT, "server", "public", "app.js"), "utf8");
-  assert.ok(/useGif\s*=\s*isSeq\s*&&/.test(ui), "缺少 useGif 门控");
-  assert.ok(ui.includes("z.hasIni && z.speed"), "门控未同时考虑 ini 的 $speed");
+  assert.ok(ui.includes("GifRule.shouldSynthZip("), "压缩包门控未接规则模块");
+  assert.ok(ui.includes("GifRule.shouldSynthDir("), "目录分支未接规则模块");
+  assert.ok(!/useGif\s*=\s*isSeq\s*&&/.test(ui), "仍残留旧的内联 useGif 门控");
 });
 ok("路由 fps 参数化并透传（默认 60）", () => {
   const r = fs.readFileSync(path.join(ROOT, "server", "routes", "archive.js"), "utf8");

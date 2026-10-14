@@ -239,7 +239,7 @@ config.json ──────────────────────�
 - **上传权限**（收藏目录不可上传；未登录只能上传到预设「游客」分类，文件存项目本地）：`handleFiles()` 判定——①`activeFilter==="favorites"` 时禁止上传（提示"收藏分类不可上传"）；②未登录（游客）→ 只能上传到预设「👤 游客」分类，文件存项目本地 `uploads/`（`/api/upload` 无 targetDir）；③登录后 → 若当前在真实目录 `activeDir`，带 `targetDir` 上传直接写入该目录（`/api/upload?targetDir=`，服务端校验登录+目录存在），否则存本地。游客分类图片 = 服务端 `/api/uploaded`（持久）+ 本次浏览期内前端上传（按 src 去重）。
 - **顶部分类可滑动导航**：`.nav-scroll` 包裹（`flex:1; min-width:0; overflow-x:auto`）内分类按钮横向滑动；搜索框窄一半（`width:100px`，聚焦 130px）（顶部分类过多时横向滑动；搜索框相应收窄）。
 - **压缩包折叠**：`galleryCollapsedZips` 持久化收起/展开。
-- **GIF 合成**：`detectFramesFromNames()` 识别连续数字帧 → 请求 `/api/gif` 或 `/api/zip/gif`；缓存 `cache-gifs/`。
+- **GIF 合成**：规则集中在 `server/lib/rule/gif-rule.js`（唯一实现，前后端共用同一份源）——**目录一律平铺**，只有压缩包按两条具名规则合成：mod（含 `.ini` 且有 `$speed`，翻转）或图包（包名带间隔）。缓存 `cache-gifs/`。
 - **压缩包按 mod 语义分流（4 条规则）**：①包名带间隔（`@40ms`/`2s`，Pixiv 图包）→ 按该间隔合成 GIF、**不翻转**；②含 `.ini`（3DMigoto mod）→ 包内图片是**倒置存储**，输出前 180° 翻转（`ffmpeg -vf vflip,hflip`；群晖静态 ffmpeg 缺 png/jpg muxer，故翻转结果用单帧 GIF 承载）；③两者都无 → 不合成、原样显示；④含 ini 且是序列且 ini 有 `$speed` → 按 `1000/(fps×$speed)` 换算帧间隔合成（`fps` 为游戏渲染帧率，走 API 参数、默认 60）。`$speed` 是 3dmigoto 动画 ini 的每帧递进量（`[Present]` 里 `$frame = $frame + $speed`）。
 - **长按/右键**：~~`contextmenu` 仅 img preventDefault；无 pointerdown 监听，不影响滑动与单击~~ **已放开**（2026-09-01 注释掉 contextmenu 屏蔽与 img 的 user-select/touch-callout/user-drag，允许长按/右键保存图片）。
 - **登录 UI**：`refreshAuth()` 读 **`/api/status`**（框架端点，返回 `needsAuth`）→ 未登录只显 🔒 无 ⚙，登录后只显 ⚙ 无 🔒（退出登录入口移到设置面板内 `#settingsLogout`）。
@@ -324,8 +324,12 @@ config.json ──────────────────────�
 - 每次请求 `loadConfig()` 实时读文件，改 config.json 无需重启 API。
 - `GET /api/gallery` 返回前 `publicConfig()` **剥离 passwordHash/passwordSalt**（绝不能让前端拿到哈希）。
 
-### 坑⑯ GIF 合成判断
-- 只有目录内文件名是「连续数字帧」（如 `image_001.png`…）才合成 GIF；单张图/非数字命名显示原图，不做 GIF（用户配的 `light1 拷贝.png` 之类显示原图属正常）。
+### 坑⑯ GIF 合成判断（2026-10-14 口径修正）
+- 合成规则集中在唯一实现 `server/lib/rule/gif-rule.js`（前端由 `js/manifest.json` 内联进 app.js，后端由 `assemble.json` 映射后 require，同一份源），共**两条具名规则**：
+  - **规则一 · mod 合成**：序列帧 + 含 `.ini`（3DMigoto mod）+ ini 有 `$speed>0` → 合成；输出前 180° 翻转（`flip=true`）。
+  - **规则二 · 图包合成**：序列帧 + 包名带帧间隔（`@40ms`/`500ms`/`2s`，Pixiv 图包）→ 按该间隔合成；不翻转。
+  - 两条都不命中 → 不合成、原样显示。
+- **目录（文件夹）内图片一律平铺原图，不再合成**：卡面/图集这类数字编号图（如 `tex_support_card_10001.png…`）与动画帧在命名上无法区分，只能按来源判定；此前的「编号连续 ≥3 张就整目录合成」会把它误合成一个 GIF。
 
 ### 坑⑰ 统一分组规则（3种展示→1种）
 - **旧逻辑**：①有直图就拍平 ②无直图+1子目录→合并前缀 ③无直图+多子目录→分组 → 同结构目录出现3种不同展示。

@@ -26,6 +26,11 @@ const FFMPEG_LIB = _ff.lib;
 
 // 序列帧判定：文件 ≥3、文件名「前缀+固定宽度数字+扩展名」、前缀相同、数字连续递增
 function detectFramesFromDir(files) {
+  // 【2026-10-14 规则抽离】序列帧判定已抽到唯一实现 server/lib/rule/gif-rule.js（前端同一份源），
+  // 此处只做适配：原签名返回 { frames } 或 null，保留给 gifFromDir / gifFromZip / 导出使用。
+  const frames = require("./rule/gif-rule").detectFrames(files);
+  return frames.length >= 3 ? { frames: frames } : null;
+  /* 【原实现】保留痕迹便于回退：
   if (!files || files.length < 3) return null;
   const groups = new Map();
   for (const f of files) {
@@ -43,17 +48,13 @@ function detectFramesFromDir(files) {
     let bestRun = run;
     for (let i = 1; i < sorted.length; i++) {
       if (sorted[i].n === sorted[i - 1].n + 1) run.push(sorted[i]);
-      else {
-        if (run.length > bestRun.length) bestRun = run;
-        run = [sorted[i]];
-      }
+      else { if (run.length > bestRun.length) bestRun = run; run = [sorted[i]]; }
     }
     if (run.length > bestRun.length) bestRun = run;
-    if (bestRun.length >= 3 && (!best || bestRun.length > best.frames.length)) {
-      best = { frames: bestRun };
-    }
+    if (bestRun.length >= 3 && (!best || bestRun.length > best.frames.length)) best = { frames: bestRun };
   }
   return best;
+  */
 }
 
 /**
