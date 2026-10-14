@@ -74,6 +74,10 @@ function apiDirectories(query, res, opts) {
 
 // GET /api/images?root=&path=&recursive=false&noCache=
 async function apiImages(query, res) {
+  // 2026-10-14 黑名单模式：命中黑名单的请求**在读盘前**直接 403（避免既越权又触发扫描）
+  if (query && query.root && require("../lib/config").isBlockedPath(String(query.root))) {
+    return jsonRes(res, 403, { error: "blocked-by-blacklist", path: "", count: 0, images: [] });
+  }
   const root = queryRoot(query);
   const relativePath = query.path || "";
   const recursive = query.recursive === "true";
