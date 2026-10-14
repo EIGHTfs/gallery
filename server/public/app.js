@@ -677,6 +677,29 @@
 
     loading = false;
     showNotification(t("loadedImages", { n: apiImages.length }), "success");
+    // ┌─ 待办：这一步的 render() 是「整屏重建」，会带来滚动位置回顶（方案 2 设计概要，尚未实施）────────
+    // │ 现状（代码事实）：render() 入口即 `gallery.innerHTML = ""`（js/browse/render.js:59 / 113 / 155，
+    // │   分别对应 收藏视图 / 游客视图 / 常规视图 三个分支），随后由 currentScope() 依据 apiImages
+    // │   重新派生 {subDirs, images} 并重建排序条、分组 section、图片行 .dir-grid、卡片，
+    // │   最后 renderBreadcrumb() 写右侧张数、applyImageRowWrap(N) 做每行 N 张切块。
+    // │   ⇒ 每次 render 都是「全屏重画」：副作用一是画廊滚动位置被重置到顶部，
+    // │     二是已显示图片的 DOM 被重建（解码有缓存、通常不闪白，但会有一次重排）。
+    // │   同源记录：js/app.js:516-519（上次「点开图片→点收藏→图片回顶部」的修复注释，
+    // │   当时把 toggleFavorite 末尾的 render() 改成 updateFavoriteMarks() 就地更新角标）。
+    // │
+    // │ 本处为什么现在会触发：第一步先把「当前目录」渲染出来之后，第二步全量数据到达又 render 一次，
+    // │   如果用户已经往下滚着看第一步的内容，就会被弹回顶部。
+    // │
+    // │ 方案 2 概要（保滚动位置，约 20 行，不改分组/渲染结构）：
+    // │   1) 渲染前记录：const keepTop = gallery.scrollTop（若有其它滚动容器一并记录）；
+    // │   2) 渲染后恢复：把 keepTop 写回；由于图片是懒加载、恢复时布局高度可能还没稳定，
+    // │      在 requestAnimationFrame 里再写一次（或恢复后校验 scrollHeight 是否已足够）；
+    // │   3) 只在「同一视图补数据」时恢复；用户切目录/切筛选（activeDir/currentPath/activeFilter 变化）
+    // │      时**不恢复**（切视图本来就该回到顶部），判据：进入本函数时快照这三个状态、渲染后比对；
+    // │   4) 验收：进某目录 → 滚到中部 → 等第二步完成 → 滚动位置不变，且第一屏图片无重复闪烁。
+    // │ 备选（体验更好但风险更高，未采用）：方案 1 增量合并 —— 第二步只把新出现的深层图片/新分组
+    // │   插进现有 DOM（参照 updateFavoriteMarks 的就地更新思路），不整屏重建；需真渲染回归验证。
+    // └────────────────────────────────────────────────────────────────────────────
     render();
   }
 
