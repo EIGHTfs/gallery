@@ -46,14 +46,18 @@ function statMtime(p) {
 const SCAN_YIELD_EVERY = 500;       // 每处理这么多个目录让出一次（粗粒度：让出本身也有成本）
 const INFLIGHT_SCAN = new Map();    // searchPath -> Promise（单飞复用）
 
-async function recursiveScanAll(dir) {
+async function recursiveScanAll(dir, opts) {
+  // 分层索引（2026-10-14）：只扫「dir 往下 maxDepth 层目录」内的文件，更深层不深入 ——
+  // 进入那些子目录时再由浏览路径按需扫描（searchPath 作为新起点）。默认深度走 .env GALLERY_SCAN_MAX_DEPTH。
+  const maxDepth = (opts && Number.isFinite(opts.maxDepth)) ? opts.maxDepth : require("./config").resolveScanMaxDepth();
   if (INFLIGHT_SCAN.has(dir)) return INFLIGHT_SCAN.get(dir);   // 单飞：并发请求共享同一轮扫描
   const job = (async () => {
     const images = [];
     const dirMtimes = new Map();
     const exclude = getExcludeDirs();
     let dirsSeen = 0;
-    async function scan(d) {
+    let skippedDeep = 0;
+    async function scan(d, depth) {
       let entries;
       try {
         entries = fs.readdirSync(d, { withFileTypes: true });   // 同步读：与旧实现同速
@@ -65,7 +69,12 @@ async function recursiveScanAll(dir) {
         if (entry.isDirectory() && exclude.has(entry.name)) continue; // 排除 @eaDir 等
         const full = path.join(d, entry.name);
         if (entry.isDirectory()) {
-          await scan(full);          // 内联 DFS：与旧实现顺序一致（目录项按 readdir 顺序就地递归）
+          if (depth < maxDepth) {
+            await scan(full, depth + 1);   // 内联 DFS：与旧实现顺序一致（目录项按 readdir 顺序就地递归）
+          } else {
+            skippedDeep++;                 // 超过 N 层：留待进入该目录时按需扫描
+            dirMtimes.set(full, statMtime(full));  // 仍记录 mtime，便于探针判断该目录是否变化
+          }
         } else if (IMG_EXT_RE.test(entry.name)) {
           try {
             const st = fs.statSync(full);   // 同步 stat：与旧实现同速（不做逐文件 async 往返）
@@ -85,8 +94,8 @@ async function recursiveScanAll(dir) {
       dirMtimes.set(d, statMtime(d));
       if (++dirsSeen % SCAN_YIELD_EVERY === 0) await new Promise((r) => setImmediate(r)); // 粗粒度让出
     }
-    await scan(dir);
-    return { images, dirMtimes };
+    await scan(dir, 0);
+    return { images, dirMtimes, maxDepth, skippedDeep };
   })();
   INFLIGHT_SCAN.set(dir, job);
   try {
