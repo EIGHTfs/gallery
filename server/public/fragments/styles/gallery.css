@@ -155,11 +155,6 @@
   background: var(--card);
   height: var(--card-h, 380px);
   transition: transform .25s, box-shadow .25s;
-  /* 2026-10-14 秒出图优化：屏幕外的卡片跳过渲染与绘制。
-     总览页会一次生成 1000+ 张卡片，全量参与布局/样式计算很贵；卡片高度固定（--card-h），
-     所以不需要 contain-intrinsic-size 兜高度；也不影响 .dir-section-header 的 sticky（未加在区块上）。 */
-  content-visibility: auto;
-  contain-intrinsic-size: auto var(--card-h, 380px);
 }
 .card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,.5); }
 .card img {
