@@ -32,8 +32,9 @@ const cfg = { directories: [{ path: inner, category: "all" }] };
 
 console.log("═══ 根因复现：单目录时 resolveFsRoot 恰好等于该目录（上界过窄）═══");
 ok("resolveFsRoot(cfg) === 该目录本身", () => assert.strictEqual(resolveFsRoot(cfg), inner));
-ok("公共路径 queryRoot 仍被钳回该目录（未登录行为不变）", () => {
-  assert.strictEqual(queryRoot({ root: parent }, cfg), inner);
+ok("默认（黑名单模式）queryRoot 放行任意非黑名单路径（2026-10-14 新语义：自由浏览）", () => {
+  assert.strictEqual(queryRoot({ root: parent }, cfg), parent, "默认模式应放行父目录（旧语义是钳回 inner）");
+  assert.strictEqual(queryRoot({ root: "/etc" }, cfg), inner, "命中黑名单的请求应退回默认根");
 });
 
 console.log("═══ 修复：已登录的目录浏览器可返回上一级 ═══");

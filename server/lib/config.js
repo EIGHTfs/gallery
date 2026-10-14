@@ -116,36 +116,100 @@ function isWithinAnyRoot(target, roots) {
 
 // 浏览请求指定的根（query.root），必须落在 resolveFsRoot 之内，防越权浏览
 // cfg 可选：仅供测试注入，生产调用不传（内部自行 loadConfig）
+// ─── 黑名单排除（2026-10-14 新设计：自由浏览 + 黑名单）────────────────
+// 语义：默认情况下任意绝对路径都可浏览；只有命中黑名单（系统关键目录）的路径才被拒。
+// 旧的白名单语义（GALLERY_FS_ROOT(S) / config.fsRoot(s)）保留为「显式配置则退回白名单模式」的兼容分支。
+const DEFAULT_BLACKLIST_DIRS = [
+  "/proc", "/sys", "/dev", "/run", "/boot", "/etc", "/bin", "/sbin", "/lib", "/lib64",
+  "/usr", "/var", "/tmp",
+  // 群晖 NAS 元数据目录（系统/套件数据，不属于用户资源）
+  "/volume1/@appstore", "/volume1/@appdata", "/volume1/@database", "/volume1/@tmp", "/volume1/docker",
+];
+
+/** 解析「目录数组」字符串（分隔符 : 或 ,）为绝对路径数组 */
+function parseDirList(value) {
+  if (!value) return [];
+  return String(value)
+    .split(/[:,]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => path.resolve(s));
+}
+
+/** 实际生效的黑名单：.env GALLERY_BLACKLIST_DIRS → config.blacklistDirs → 内置默认集 */
+function resolveBlacklistDirs(cfg) {
+  const c = cfg || loadConfig();
+  const envList = parseDirList(process.env.GALLERY_BLACKLIST_DIRS);
+  if (envList.length) return envList;
+  const cfgList = Array.isArray(c.blacklistDirs) ? parseDirList(c.blacklistDirs.join(":")) : [];
+  if (cfgList.length) return cfgList;
+  return DEFAULT_BLACKLIST_DIRS.map((p) => path.resolve(p));
+}
+
+/** realpath 解析（不存在时退回 resolve）——比对前双方都走它，防符号链接绕过 */
+function safeReal(p) {
+  const abs = path.resolve(String(p));
+  try {
+    return fs.realpathSync(abs);
+  } catch (_) {
+    return abs;
+  }
+}
+
+/** 是否命中黑名单（含其子路径）：软链指向黑名单目录同样被拦 */
+function isBlockedPath(target, cfg) {
+  const abs = safeReal(target);
+  for (const item of resolveBlacklistDirs(cfg)) {
+    const blocked = safeReal(item);
+    if (abs === blocked || abs.startsWith(blocked.endsWith(path.sep) ? blocked : blocked + path.sep)) return true;
+  }
+  return false;
+}
+
+/** 是否显式配置了「白名单根」（env 或 config）——决定采用哪种语义 */
+function hasExplicitWhitelist(cfg) {
+  const c = cfg || loadConfig();
+  if (parseRootList(process.env.GALLERY_FS_ROOTS).length) return true;
+  if (process.env.GALLERY_FS_ROOT) return true;
+  if (Array.isArray(c.fsRoots) && c.fsRoots.length) return true;
+  return !!c.fsRoot;
+}
+
+/** 路径是否允许浏览（唯一的放行判断入口）：
+ *  显式配置白名单根 → 必须落在某一允许根之内；否则 → 只要不在黑名单内即可 */
+function isPathAllowed(target, cfg) {
+  if (hasExplicitWhitelist(cfg)) return isWithinAnyRoot(target, resolveFsRoots(cfg));
+  return !isBlockedPath(target, cfg);
+}
+
+// 浏览请求指定的根（query.root）：
+//   默认（黑名单模式）→ 任意路径放行，命中黑名单则退回默认根；
+//   显式白名单模式 → 维持旧语义（必须落在允许根之内）。
 function queryRoot(query, cfg) {
   const base = resolveFsRoot(cfg);
   if (!query || !query.root) return base;
   const want = path.resolve(String(query.root));
-  if (want === base || want.startsWith(base.endsWith(path.sep) ? base : base + path.sep)) return want;
-  return base;
+  return isPathAllowed(want, cfg) ? want : base;
 }
 
 // 目录浏览天花板（仅设置页「添加目录」的目录浏览器用）：
-//   显式配置 GALLERY_FS_ROOT / config.fsRoot → 以它为界（尊重部署方限制）
-//   未显式配置 → 文件系统根（可一路向上，选择任意本机目录）
+//   默认 → 文件系统根（可一路向上挑任意目录，黑名单在放行判断里拦）
+//   显式配置根 → 以它为界
 // 为什么不能直接用 resolveFsRoot 当上界：它取的是「已配置目录的公共前缀」，
-// 只配了一个目录时它恰好等于该目录本身，于是「上一级」永远越界被钳回原处 ——
-// 2026-10-08 修：目录浏览器（设置→添加图片目录）无法返回上一级。
+// 只配一个目录时恰好等于该目录本身，于是「上一级」永远越界被钳回 —— 2026-10-08 修过这个问题。
 function resolveBrowseLimit(cfg) {
   const c = cfg || loadConfig();
-  const envRoot = process.env.GALLERY_FS_ROOT;
-  if (envRoot && fs.existsSync(envRoot)) return path.resolve(envRoot);
-  if (c.fsRoot && fs.existsSync(c.fsRoot)) return path.resolve(c.fsRoot);
+  if (hasExplicitWhitelist(c)) return resolveFsRoot(c);
   return path.parse(process.cwd()).root;
 }
 
 // 归一化并校验浏览路径：返回 { root, limit, clamped }
-// clamped=true 表示请求越界、已被钳回 limit（前端据此提示「已到最上层」而不是静默无反应）
+// clamped=true 表示请求被拒、已退回 limit（前端据此提示「已到最上层」，而不是静默无反应）
 // cfg 可选：仅供测试注入，生产调用不传
 function browseRoot(query, cfg) {
   const limit = resolveBrowseLimit(cfg);
   const want = query && query.root ? path.resolve(String(query.root)) : limit;
-  const inside = want === limit || want.startsWith(limit.endsWith(path.sep) ? limit : limit + path.sep);
-  return inside ? { root: want, limit, clamped: false } : { root: limit, limit, clamped: true };
+  return isPathAllowed(want, cfg) ? { root: want, limit, clamped: false } : { root: limit, limit, clamped: true };
 }
 
 // ─── .env 支持（零依赖，只读一次）────────────────────────────
@@ -205,6 +269,13 @@ module.exports = {
   resolveFsRoot,
   resolveFsRoots,
   isWithinAnyRoot,
+  // 黑名单模式（2026-10-14 新设计）
+  DEFAULT_BLACKLIST_DIRS,
+  parseDirList,
+  resolveBlacklistDirs,
+  isBlockedPath,
+  hasExplicitWhitelist,
+  isPathAllowed,
   resolveImagesPerRow,
   queryRoot,
   resolveBrowseLimit,
