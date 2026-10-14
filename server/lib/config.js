@@ -114,10 +114,47 @@ function browseRoot(query, cfg) {
   return inside ? { root: want, limit, clamped: false } : { root: limit, limit, clamped: true };
 }
 
+// ─── .env 支持（零依赖，只读一次）────────────────────────────
+// 每行 KEY=VALUE，# 开头为注释；不覆盖已存在的真实环境变量（真实 env 优先级最高）。
+// 为什么由服务端自己读：start.sh 刻意不 source 外部文件（换环境会找不到 node），故进程启动时读 <项目根>/.env。
+function loadDotEnvOnce() {
+  if (loadDotEnvOnce.__done) return;
+  loadDotEnvOnce.__done = true;
+  try {
+    const p = path.join(path.resolve(__dirname, "..", ".."), ".env");
+    if (!fs.existsSync(p)) return;
+    for (const raw of fs.readFileSync(p, "utf8").split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const i = line.indexOf("=");
+      if (i <= 0) continue;
+      const k = line.slice(0, i).trim();
+      let v = line.slice(i + 1).trim();
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+      if (!(k in process.env)) process.env[k] = v;
+    }
+  } catch (_) {
+    /* .env 缺失或不可读：忽略，走 config.json / 默认值 */
+  }
+}
+
+// 每行图片数量：.env / 环境变量 GALLERY_IMAGES_PER_ROW → config.imagesPerRow → 默认 20。
+// 前端不得写死，一律经 /api/gallery 下发（见 publicConfig）。
+const DEFAULT_IMAGES_PER_ROW = 20;
+function resolveImagesPerRow(cfg) {
+  loadDotEnvOnce();
+  const c = cfg || loadConfig();
+  const env = parseInt(process.env.GALLERY_IMAGES_PER_ROW, 10);
+  if (Number.isFinite(env) && env > 0) return env;
+  const v = parseInt(c.imagesPerRow, 10);
+  if (Number.isFinite(v) && v > 0) return v;
+  return DEFAULT_IMAGES_PER_ROW;
+}
+
 // 浏览器不可见密码哈希
 function publicConfig(cfg) {
   const { passwordHash, passwordSalt, ...rest } = cfg;
-  return { ...rest, fsRoot: resolveFsRoot(cfg) };
+  return { ...rest, fsRoot: resolveFsRoot(cfg), imagesPerRow: resolveImagesPerRow(cfg) };
 }
 
 module.exports = {
@@ -127,6 +164,7 @@ module.exports = {
   saveConfig,
   getExcludeDirs,
   resolveFsRoot,
+  resolveImagesPerRow,
   queryRoot,
   resolveBrowseLimit,
   browseRoot,

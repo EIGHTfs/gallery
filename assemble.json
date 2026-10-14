@@ -45,6 +45,7 @@
     "templates/_gallery/server/app.js": "server/app.js",
     "templates/_gallery/server/lib/archive.js": "server/lib/archive.js",
     "templates/_gallery/server/lib/config.js": "server/lib/config.js",
+  "templates/_gallery/.env": ".env",
     "templates/_gallery/server/lib/gif.js": "server/lib/gif.js",
   "templates/_gallery/server/lib/rule/gif-rule.js": "server/lib/rule/gif-rule.js",
     "templates/_gallery/server/lib/scan.js": "server/lib/scan.js",
