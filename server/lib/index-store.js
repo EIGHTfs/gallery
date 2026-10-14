@@ -15,6 +15,12 @@
 
 const fs = require("fs");
 const path = require("path");
+// StringDecoder：**必须**用它做流式解码，不能用 buf.toString("utf8", 0, n)。
+// 原因（实测过的线上 bug）：1MB 缓冲边界若正好切在一个多字节 UTF-8 字符（例如「洛」= e6b49b 3 字节）中间，
+//   buf.toString 会把两半分别解码 ⇒ 各得到一个替换字符 U+FFFD ⇒ 索引里的路径变成「[库\ufffd\ufffd]」，
+//   于是前端 im.path.startsWith(配置根) 匹配失败、图片被挂到错误的根上（面包屑显示成绝对路径链）。
+//   实例：鸣潮根 26275 张里有 1 张中招，与「每个 1MB 边界最多坏一个字符」的特征一致。
+const { StringDecoder } = require("node:string_decoder");
 // 与 scan.js 共用同一个体积格式化函数 —— 保证索引产出与整树扫描产出**逐字节一致**（前端显示不得变化）
 const { formatSize } = require("./util");
 
@@ -112,12 +118,13 @@ function readDirEntryJsonl(category, key) {
   try {
     const bufSize = 1 << 20;              // 1 MB 缓冲，只驻留当前行
     const buf = Buffer.alloc(bufSize);
+    const dec = new StringDecoder("utf8");   // 跨块多字节字符安全解码（原因见文件头注释）
     let rest = "";
     let lineNo = 0;
     while (true) {
       const n = fs.readSync(fd, buf, 0, bufSize, null);
       if (n <= 0) break;
-      rest += buf.toString("utf8", 0, n);
+      rest += dec.write(buf.subarray(0, n));
       let idx;
       while ((idx = rest.indexOf("\n")) >= 0) {
         const line = rest.slice(0, idx);
@@ -166,12 +173,13 @@ function upsertDirEntryJsonl(category, key, entry) {
     if (inFd !== null) {
       const bufSize = 1 << 20;
       const buf = Buffer.alloc(bufSize);
+    const dec = new StringDecoder("utf8");   // 跨块多字节字符安全解码（原因见文件头注释）
       let rest = "";
       let lineNo = 0;
       while (true) {
         const n = fs.readSync(inFd, buf, 0, bufSize, null);
         if (n <= 0) break;
-        rest += buf.toString("utf8", 0, n);
+        rest += dec.write(buf.subarray(0, n));
         let idx;
         while ((idx = rest.indexOf("\n")) >= 0) {
           const l = rest.slice(0, idx);
@@ -211,6 +219,7 @@ function loadAllJsonl(category) {
   try {
     const bufSize = 1 << 20;
     const buf = Buffer.alloc(bufSize);
+    const dec = new StringDecoder("utf8");   // 跨块多字节字符安全解码（原因见文件头注释）
     let rest = "";
     let lineNo = 0;
     const take = (line) => {
@@ -224,7 +233,7 @@ function loadAllJsonl(category) {
     while (true) {
       const n = fs.readSync(fd, buf, 0, bufSize, null);
       if (n <= 0) break;
-      rest += buf.toString("utf8", 0, n);
+      rest += dec.write(buf.subarray(0, n));
       let idx;
       while ((idx = rest.indexOf("\n")) >= 0) {
         take(rest.slice(0, idx));
