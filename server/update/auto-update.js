@@ -188,7 +188,7 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
     ".auto-update-state.json"
   ].concat(extraExclude);
   // 任意层级目录名（系统元数据 / 依赖 / 构建产物 / 本模式临时目录）
-  const GITHUB_EXCLUDE_DIR = ["@eaDir", "node_modules", "_test-download", "dist", "release", ".auto-update-tmp"];
+  const GITHUB_EXCLUDE_DIR = ["@eaDir", "node_modules", "_test-download", "dist", "release", ".auto-update-tmp", "cache-index"];
   // 后缀规则（日志 / PID / 备份残留）
   const GITHUB_EXCLUDE_SUFFIX = [".log", ".pid", ".bak"];
 

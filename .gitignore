@@ -1,6 +1,7 @@
 node_modules/
 .trash/
 cache-gifs/
+cache-index/
 uploads/
 *.log
 server/sessions.json
