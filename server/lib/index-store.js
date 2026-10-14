@@ -65,9 +65,207 @@ function categoryDir(category) {
   return path.join(indexRoot(), slugKey(category || "uncategorized"));
 }
 
-/** 某分类的索引文件路径（一个分类一个文件） */
+/** 某分类的索引文件路径（保留旧版单文件路径，仅供迁移读取） */
 function indexPathOf(category) {
   return path.join(categoryDir(category), "index.json");
+}
+
+/**
+ * 分片键：按「配置根之下的**顶层子目录**」切分（root 自身归 _root）。
+ * 为什么：单分类全量索引在大分类上会变成数百 MB 的单文件，每次访问都要解析+重写整份
+ * （实测 cache-index 达 513 MB / 9 个文件）⇒ 必须把读写体积压到 MB 级。
+ */
+function shardKeyFor(root, dir) {
+  const r = path.resolve(String(root));
+  const d = path.resolve(String(dir));
+  if (d === r) return "_root";
+  if (!d.startsWith(r.endsWith(path.sep) ? r : r + path.sep)) return "_root";
+  const rest = d.slice((r.endsWith(path.sep) ? r : r + path.sep).length);
+  const first = rest.split(path.sep)[0];
+  return slugKey(first || "_root");
+}
+
+/** 某分片的索引文件路径：cache-index/<分类>/<分片键>.json */
+function shardPathFor(category, root, dir) {
+  return path.join(categoryDir(category), shardKeyFor(root, dir) + ".json");
+}
+
+/**
+ * ── JSONL 流式读写（按「文件可全量、读不全量」的格式）──
+ * 文件：<分类>/index.jsonl —— 第 1 行 header，之后一行一条目录条目 {k,dir,dirMtime,items}
+ * 读：逐行流式扫描，命中目标 key 立即返回（**不整份 JSON.parse、不整份入内存**，内存只留一行）
+ * 写：逐行流式复制，替换/追加目标那一行 → 临时文件 → rename（内存同样只留一行）
+ */
+function jsonlPathFor(category) {
+  return path.join(categoryDir(category), "index.jsonl");
+}
+
+/** 流式读取某一目录条目（命中即停；找不到返回 null） */
+function readDirEntryJsonl(category, key) {
+  const file = jsonlPathFor(category);
+  let fd;
+  try {
+    fd = fs.openSync(file, "r");
+  } catch (_) {
+    return null;
+  }
+  try {
+    const bufSize = 1 << 20;              // 1 MB 缓冲，只驻留当前行
+    const buf = Buffer.alloc(bufSize);
+    let rest = "";
+    let lineNo = 0;
+    while (true) {
+      const n = fs.readSync(fd, buf, 0, bufSize, null);
+      if (n <= 0) break;
+      rest += buf.toString("utf8", 0, n);
+      let idx;
+      while ((idx = rest.indexOf("\n")) >= 0) {
+        const line = rest.slice(0, idx);
+        rest = rest.slice(idx + 1);
+        lineNo++;
+        if (lineNo === 1 || !line) continue;          // header / 空行
+        if (line.indexOf('"' + key + '"') < 0) continue; // 便宜的预筛，避免对每行 JSON.parse
+        try {
+          const obj = JSON.parse(line);
+          if (obj && obj.k === key) return obj;
+        } catch (_) {
+          /* 坏行跳过：单行损坏不应影响其它条目 */
+        }
+      }
+    }
+    if (rest.trim()) {
+      try {
+        const obj = JSON.parse(rest);
+        if (obj && obj.k === key) return obj;
+      } catch (_) { /* 同上 */ }
+    }
+    return null;
+  } finally {
+    try { fs.closeSync(fd); } catch (_) { /* ignore */ }
+  }
+}
+
+/** 流式更新/追加某目录条目（逐行复制 + 替换那一行；内存只留一行） */
+function upsertDirEntryJsonl(category, key, entry) {
+  const file = jsonlPathFor(category);
+  const dir = path.dirname(file);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = path.join(dir, "." + path.basename(file) + "." + process.pid + ".tmp");
+  const header = JSON.stringify({ version: 1, category: category || "uncategorized", updatedAt: new Date().toISOString() });
+  const line = JSON.stringify(Object.assign({ k: key }, entry));
+  const out = fs.openSync(tmp, "w");
+  let replaced = false;
+  try {
+    let inFd = null;
+    try {
+      inFd = fs.openSync(file, "r");
+    } catch (_) {
+      inFd = null;
+    }
+    fs.writeSync(out, header + "\n");
+    if (inFd !== null) {
+      const bufSize = 1 << 20;
+      const buf = Buffer.alloc(bufSize);
+      let rest = "";
+      let lineNo = 0;
+      while (true) {
+        const n = fs.readSync(inFd, buf, 0, bufSize, null);
+        if (n <= 0) break;
+        rest += buf.toString("utf8", 0, n);
+        let idx;
+        while ((idx = rest.indexOf("\n")) >= 0) {
+          const l = rest.slice(0, idx);
+          rest = rest.slice(idx + 1);
+          lineNo++;
+          if (lineNo === 1 || !l) continue;              // header / 空行
+          if (l.indexOf('"' + key + '"') >= 0) {
+            let isTarget = false;
+            try { isTarget = JSON.parse(l).k === key; } catch (_) { isTarget = false; }
+            if (isTarget) {
+              if (!replaced) { fs.writeSync(out, line + "\n"); replaced = true; }
+              continue;                                   // 丢弃旧行
+            }
+          }
+          fs.writeSync(out, l + "\n");
+        }
+      }
+      if (rest.trim()) fs.writeSync(out, rest + "\n");
+    }
+    if (!replaced) fs.writeSync(out, line + "\n");
+  } finally {
+    try { fs.closeSync(out); } catch (_) { /* ignore */ }
+  }
+  fs.renameSync(tmp, file);
+  return true;
+}
+
+/** 流式载入整份 JSONL 为 Map（内存只保留条目本身，不做一次性 JSON.parse；用于递归遍历） */
+function loadAllJsonl(category) {
+  const file = jsonlPathFor(category);
+  const map = new Map();
+  let fd;
+  try { fd = fs.openSync(file, "r"); } catch (_) { return map; }
+  try {
+    const bufSize = 1 << 20;
+    const buf = Buffer.alloc(bufSize);
+    let rest = "";
+    let lineNo = 0;
+    const take = (line) => {
+      lineNo++;
+      if (lineNo === 1 || !line) return;
+      try {
+        const obj = JSON.parse(line);
+        if (obj && obj.k) map.set(obj.k, obj);
+      } catch (_) { /* 坏行跳过 */ }
+    };
+    while (true) {
+      const n = fs.readSync(fd, buf, 0, bufSize, null);
+      if (n <= 0) break;
+      rest += buf.toString("utf8", 0, n);
+      let idx;
+      while ((idx = rest.indexOf("\n")) >= 0) {
+        take(rest.slice(0, idx));
+        rest = rest.slice(idx + 1);
+      }
+    }
+    if (rest.trim()) take(rest);
+  } finally {
+    try { fs.closeSync(fd); } catch (_) { /* ignore */ }
+  }
+  return map;
+}
+
+/**
+ * 读分片（带旧版一次性迁移）：
+ * 旧版是「一个分类一个 index.json」；若分片不存在而旧文件在，则从旧文件中**只取该分片前缀下的条目**
+ * 写入分片，并删除旧文件（其余分片按需重建 —— 代价可控，避免一直背着一个数百 MB 的大文件）。
+ */
+function readShard(category, root, dir) {
+  const shard = shardPathFor(category, root, dir);
+  let store = readJsonSafe(shard, null);
+  if (store && store.dirs) return { store, file: shard, legacy: false };
+
+  const legacyFile = indexPathOf(category);
+  const legacy = readJsonSafe(legacyFile, null);
+  if (legacy && legacy.dirs) {
+    const r = path.resolve(String(root));
+    const prefix = r.endsWith(path.sep) ? r : r + path.sep;
+    const dirs = {};
+    for (const [k, v] of Object.entries(legacy.dirs)) {
+      const p = v && v.dir ? path.resolve(v.dir) : "";
+      if (p && (p === r || p.startsWith(prefix))) dirs[k] = v;
+    }
+    store = { version: 1, category: category || "uncategorized", dirs, migratedFrom: "index.json" };
+    try {
+      writeJsonAtomic(shard, store);
+      fs.rmSync(legacyFile, { force: true });   // 迁移后删旧大文件（释放数百 MB）
+    } catch (_) {
+      /* 迁移失败不影响本次读取（下次再试） */
+    }
+    return { store, file: shard, legacy: true };
+  }
+
+  return { store: { version: 1, category: category || "uncategorized", dirs: {} }, file: shard, legacy: false };
 }
 
 /** 目录在索引里的键：用目录相对项目根的路径做可读化编码 */
@@ -159,14 +357,10 @@ function getDirEntry(category, dir, opts) {
   const options = opts || {};
   const abs = path.resolve(String(dir));
   const key = dirKey(abs);
-  const file = indexPathOf(category);
-  const store = readJsonSafe(file, null) || { version: 1, category: category || "uncategorized", dirs: {} };
-  if (!store.dirs || typeof store.dirs !== "object") store.dirs = {};
-
   const mtime = dirMtimeMs(abs);
-  const cached = store.dirs[key];
+  // 只取该目录那一条：JSONL 流式读，命中即停（不整份解析、内存只留一行）
+  const cached = options.persist === false ? null : readDirEntryJsonl(category, key);
   if (cached && mtime && cached.dirMtime === mtime) {
-    // 命中：目录未变化 ⇒ 不读盘
     return { dir: abs, dirMtime: mtime, items: cached.items || [], images: cached.images || [], hit: true };
   }
 
@@ -174,10 +368,8 @@ function getDirEntry(category, dir, opts) {
   const scanned = scanDirShallow(abs);
   const entry = { dir: abs, dirMtime: scanned.dirMtime, items: scanned.items, images: scanned.images };
   if (options.persist !== false) {
-    store.dirs[key] = entry;
-    store.updatedAt = new Date().toISOString();
     try {
-      writeJsonAtomic(file, store);
+      upsertDirEntryJsonl(category, key, entry);   // 逐行替换/追加那一行（内存只留一行）
     } catch (_) {
       /* 落盘失败不影响本次浏览（下次访问重建即可） */
     }
@@ -194,28 +386,31 @@ function getDirEntry(category, dir, opts) {
  */
 function walkWithIndex(category, root, opts) {
   const options = opts || {};
-  const file = indexPathOf(category);
-  const store = readJsonSafe(file, null) || { version: 1, category: category || "uncategorized", dirs: {} };
-  if (!store.dirs || typeof store.dirs !== "object") store.dirs = {};
+  // 流式载入本分类条目（内存只保留条目本身）；不再整份解析 + 整份重写单文件
+  const entries = options.persist === false ? new Map() : loadAllJsonl(category);
   const exclude = new Set((options.excludeDirs || []).map((s) => String(s)));
   const images = [];
   let dirsSeen = 0;
   let hits = 0;
   let scans = 0;
-  let dirty = false;
 
   function entryOf(dir) {
     const abs = path.resolve(dir);
+    const key = dirKey(abs);
     const mtime = dirMtimeMs(abs);
-    const cached = store.dirs[dirKey(abs)];
+    const cached = entries.get(key);
     if (cached && mtime && cached.dirMtime === mtime) {
       hits++;
       return cached;
     }
     const scanned = scanDirShallow(abs);
     const entry = { dir: abs, dirMtime: scanned.dirMtime, items: scanned.items, images: scanned.images };
-    store.dirs[dirKey(abs)] = entry;
-    dirty = true;
+    if (options.persist !== false) {
+      try {
+        upsertDirEntryJsonl(category, key, entry);   // 只写这一条（逐行替换/追加；内存只留一行）
+      } catch (_) { /* 落盘失败不影响本次返回 */ }
+      entries.set(key, entry);
+    }
     scans++;
     return entry;
   }
@@ -235,14 +430,6 @@ function walkWithIndex(category, root, opts) {
 
   walk(path.resolve(String(root)));
 
-  if (dirty && options.persist !== false) {
-    store.updatedAt = new Date().toISOString();
-    try {
-      writeJsonAtomic(file, store);
-    } catch (_) {
-      /* 落盘失败不影响本次返回（下次访问重建该段即可） */
-    }
-  }
   return { images, dirsSeen, hits, scans };
 }
 
