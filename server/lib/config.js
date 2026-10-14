@@ -85,15 +85,9 @@ function resolveFsRoots(cfg) {
     .map((d) => d && d.path)
     .filter((p) => p && fs.existsSync(p));
   if (dirs.length) {
-    // 取所有已配置目录的公共前缀作为浏览根（跨卷时前缀会退化，建议改用 fsRoots/GALLERY_FS_ROOTS 显式声明）
-    let prefix = path.resolve(dirs[0]);
-    for (const d of dirs.slice(1)) {
-      const abs = path.resolve(d);
-      while (prefix !== path.dirname(prefix) && !abs.startsWith(prefix + path.sep) && abs !== prefix) {
-        prefix = path.dirname(prefix);
-      }
-    }
-    return [prefix];
+    // 2026-10-14：黑名单模式下默认根 = **已配置目录各自**（每个都是合法根），不再取公共前缀 ——
+    // 跨卷（/volume6 + /volume10）时公共前缀会退化为 /，等于把整个文件系统当默认根（既拦不住也说不清）。
+    return dirs.map((p) => path.resolve(p));
   }
   return [path.parse(process.cwd()).root];
 }

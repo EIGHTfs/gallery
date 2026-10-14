@@ -42,6 +42,11 @@ const {
 // 返回 { root, items, limit, clamped, canUp }：
 //   clamped=请求越界被钳回（前端提示「已到最上层」）；canUp=还有上一级可去。
 function apiDirectories(query, res, opts) {
+  // 2026-10-14 黑名单模式：命中黑名单的请求**明确拒绝（403）**，不再静默退回默认根
+  // ——旧行为会把默认根的内容列出来（跨卷时默认根曾退化为 /，等于把整个文件系统列给未登录者）。
+  if (query && query.root && require("../lib/config").isBlockedPath(String(query.root))) {
+    return jsonRes(res, 403, { error: "blocked-by-blacklist", root: "", items: [], limit: "", clamped: true });
+  }
   const authed = !!(opts && opts.authed);
   const picked = authed
     ? browseRoot(query)
