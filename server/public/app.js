@@ -41,20 +41,21 @@
      注意：这不降低单张原图的解码成本（那由图片像素决定），只是把能并行的并行、能跳过的跳过。 */
   const SCROLL_KEY = "galleryScroll";
 
-  /** 首屏（含一屏余量）图片：解除 lazy、提高优先级、主动 decode() 预热，避免串行解码拖慢出图 */
+  /** 首屏图片：解除 lazy、提高优先级、主动 decode() 预热，避免串行解码拖慢出图
+   *  ⚠️ 只取 DOM 开头固定 12 张，**不做逐个 getBoundingClientRect 视图判定**：
+   *  render() 是从头重建的，开头这些就是首屏；而逐个测量上千张则会给每个离屏元素（配合
+   *  content-visibility）强制一次布局 ⇒ 主线程卡死（部署端 1038 张时实测卡住、浏览器报
+   *  “页面线程被占死”。本地 24 张的样本暴露不出来，教训：自检样本量要接近生产。
+   *  这里保持 O(12)、零布局测量。 */
   function warmFirstScreen(limit) {
     try {
       const imgs = document.querySelectorAll("#gallery .card img");
-      const vh = window.innerHeight || 800;
-      let k = 0;
-      for (const img of imgs) {
-        const r = img.getBoundingClientRect();
-        if (r.top < vh * 1.5 && r.bottom > -200) {
-          img.loading = "eager";
-          try { img.fetchPriority = "high"; } catch (_) {}
-          if (img.decode) img.decode().catch(() => {});
-          if (++k >= (limit || 12)) break;
-        }
+      const n = Math.min(imgs.length, limit || 12);
+      for (let i = 0; i < n; i++) {
+        const img = imgs[i];
+        img.loading = "eager";
+        try { img.fetchPriority = "high"; } catch (_) {}
+        if (img.decode) img.decode().catch(() => {});
       }
     } catch (_) { /* 预热失败不影响显示 */ }
   }
