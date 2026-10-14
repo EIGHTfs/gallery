@@ -692,11 +692,15 @@
     const results = await Promise.all(targets.map(dir =>
       fetchLayer(dir, "", true, (step1Rel && dir.path === activeDir) ? step1Rel : "")));
     if (runId !== loadRunId) return;                       // 同上
+    // 关键：第二步带 skip 时**不会**返回第一步那棵子树，所以必须与第一步的结果求并集。
+    //   原先直接 applyImages(mapRawImages(fullMap)) 是「整份替换」⇒ 当前目录那部分被抹掉，
+    //   表现为「第二次渲染把第一次显示出来的图片变空」。
+    const mergedMap = new Map(firstMap);
     for (const imgData of results) {
       if (!imgData) continue;
-      for (const im of (imgData.images || [])) fullMap.set(im.path, im);
+      for (const im of (imgData.images || [])) mergedMap.set(im.path, im);
     }
-    applyImages(mapRawImages(fullMap), onlyRoot);
+    applyImages(mapRawImages(mergedMap), onlyRoot);
 
     loading = false;
     showNotification(t("loadedImages", { n: apiImages.length }), "success");
