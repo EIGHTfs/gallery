@@ -511,6 +511,36 @@
       authedUser = auth.needsSetup === true ? true : auth.authed === true;
     } catch (_) { favoriteImages = []; favoriteSrcs = new Set(); }
   }
+  /** 收藏状态就地更新：只增删匹配 src 的卡片 ❤️ 角标，不重建画廊 DOM
+   *  （2026-10-14 修 bug：原先 toggleFavorite 末尾无条件 render()，
+   *   而 render() 会 gallery.innerHTML="" 重建全部卡片 ⇒ 画廊滚动位置被重置到顶部，
+   *   表现为「点开图片→点收藏→图片回顶部」。）
+   *  @returns {number} 实际改动过的卡片数
+   */
+  function updateFavoriteMarks(p, src) {
+    const on = favoriteSrcs.has(src);
+    const targets = [p && p.src, src].filter(Boolean);
+    let touched = 0;
+    document.querySelectorAll("#gallery .card img").forEach((img) => {
+      const s = img.getAttribute("src");
+      if (!s || targets.indexOf(s) === -1) return;
+      const card = img.closest(".card");
+      if (!card) return;
+      const mark = card.querySelector(".card-fav");
+      if (on && !mark) {
+        const span = document.createElement("span");
+        span.className = "card-fav";
+        span.textContent = "❤️";
+        card.appendChild(span);
+        touched++;
+      } else if (!on && mark) {
+        mark.remove();
+        touched++;
+      }
+    });
+    return touched;
+  }
+
   async function toggleFavorite(p) {
     if (!authedUser) { showNotification(t("loginFirst") || "请先登录", "warn"); return; }
     const src = normalizeFavSrc(p.src);
@@ -533,7 +563,11 @@
       favoriteSrcs.add(src);
       favoriteImages.push({ ...item, src });
     }
-    render();
+    // 就地更新 ❤️ 角标 + 导航计数；**不**整体重渲染画廊（否则滚动位置回顶部）
+    updateFavoriteMarks(p, src);
+    renderNavBtns();
+    // 仅「收藏」视图需要整体重渲染：该视图的图片列表本身随收藏变化（其余视图内容不变）
+    if (activeFilter === "favorites") render();
   }
 
   /* ─── Load images: assign each to deepest matching directory ─── */
