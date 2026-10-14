@@ -446,10 +446,10 @@ async function walkWithIndex(category, root, opts) {
   const stack = [{ dir: path.resolve(String(root)), items: null, idx: 0 }];
   while (stack.length) {
     const frame = stack[stack.length - 1];
-    if (frame.items === null) {
+    if (frame.items === null || !Array.isArray(frame.items)) {
       dirsSeen++;
       const entry = entryOf(frame.dir);
-      frame.items = entry.items || [];
+      frame.items = Array.isArray(entry.items) ? entry.items : [];
       frame.idx = 0;
       if (dirsSeen % YIELD_EVERY === 0) await new Promise((r) => setImmediate(r));
     } else if (frame.idx >= frame.items.length) {
@@ -457,6 +457,7 @@ async function walkWithIndex(category, root, opts) {
       continue;
     }
     const it = frame.items[frame.idx++];
+    if (!it) continue;                          // 防御：条目数组里可能有空洞/坏行
     if (it.t === "d") {
       if (exclude.has(it.name)) continue;       // 与既有实现一致：跳过 @eaDir 等排除项
       stack.push({ dir: path.join(frame.dir, it.name), items: null, idx: 0 });
