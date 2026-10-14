@@ -47,7 +47,8 @@ const SCAN_YIELD_EVERY = 500;       // 每处理这么多个目录让出一次�
 const INFLIGHT_SCAN = new Map();    // searchPath -> Promise（单飞复用）
 
 async function recursiveScanAll(dir, opts) {
-  // 2026-10-14：**深度设计已取消**（用户决定：图片索引改为「只在该目录被访问时顺便建」，不做全量）。
+  // 2026-10-14：分层深度设计已取消；图片索引改由 index-store 按目录按需建立
+  // （本函数保留全量递归能力，但取数路径不再触发它）。
   // 这里先恢复为「不限制」（maxDepth=Infinity），保证既有文件夹显示不受影响；
   // 下一步把上层调用改为按访问目录索引（lazy），届时本函数的递归入口会被换成单层列举。
   const maxDepth = Infinity;
