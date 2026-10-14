@@ -57,17 +57,35 @@ function getExcludeDirs() {
   return new Set(arr.map((n) => String(n).trim()).filter(Boolean));
 }
 
-// 浏览根：环境变量 / config.fsRoot / 已配置目录的公共前缀 / 系统根。禁止写死 /vol02。
-function resolveFsRoot(cfg) {
+// ─── 多根目录支持（2026-10-14）──────────────────────────────
+// GALLERY_FS_ROOTS 支持多根，分隔符 : 或 ,（Linux 路径不含冒号，故冒号安全；Windows 盘符场景请只用逗号）
+function parseRootList(value) {
+  if (!value) return [];
+  return String(value)
+    .split(/[:,]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => path.resolve(s));
+}
+
+// 允许浏览的根列表（按优先级归一化为数组）：
+//   GALLERY_FS_ROOTS（多值） → GALLERY_FS_ROOT（单值） → config.fsRoots[] → config.fsRoot →
+//   已配置目录的公共前缀 → 文件系统根
+// 只保留真实存在的目录；全部不可用时退化为文件系统根（与旧行为一致）。
+function resolveFsRoots(cfg) {
   const c = cfg || loadConfig();
+  const envRoots = parseRootList(process.env.GALLERY_FS_ROOTS).filter((p) => fs.existsSync(p));
+  if (envRoots.length) return envRoots;
   const envRoot = process.env.GALLERY_FS_ROOT;
-  if (envRoot && fs.existsSync(envRoot)) return path.resolve(envRoot);
-  if (c.fsRoot && fs.existsSync(c.fsRoot)) return path.resolve(c.fsRoot);
+  if (envRoot && fs.existsSync(envRoot)) return [path.resolve(envRoot)];
+  const cfgRoots = (Array.isArray(c.fsRoots) ? c.fsRoots : []).map((p) => path.resolve(String(p))).filter((p) => fs.existsSync(p));
+  if (cfgRoots.length) return cfgRoots;
+  if (c.fsRoot && fs.existsSync(c.fsRoot)) return [path.resolve(c.fsRoot)];
   const dirs = (c.directories || [])
     .map((d) => d && d.path)
     .filter((p) => p && fs.existsSync(p));
   if (dirs.length) {
-    // 取所有已配置目录的公共前缀作为浏览根
+    // 取所有已配置目录的公共前缀作为浏览根（跨卷时前缀会退化，建议改用 fsRoots/GALLERY_FS_ROOTS 显式声明）
     let prefix = path.resolve(dirs[0]);
     for (const d of dirs.slice(1)) {
       const abs = path.resolve(d);
@@ -75,9 +93,25 @@ function resolveFsRoot(cfg) {
         prefix = path.dirname(prefix);
       }
     }
-    return prefix;
+    return [prefix];
   }
-  return path.parse(process.cwd()).root;
+  return [path.parse(process.cwd()).root];
+}
+
+// 向后兼容：单根场景仍返回一个路径（取第一个根）
+function resolveFsRoot(cfg) {
+  return resolveFsRoots(cfg)[0];
+}
+
+// 判断某路径是否落在允许的根集合之内（多根校验用它，替代旧的单 limit 判断）
+function isWithinAnyRoot(target, roots) {
+  if (!target || !roots || !roots.length) return false;
+  const abs = path.resolve(String(target));
+  for (const r of roots) {
+    const root = path.resolve(r);
+    if (abs === root || abs.startsWith(root.endsWith(path.sep) ? root : root + path.sep)) return true;
+  }
+  return false;
 }
 
 // 浏览请求指定的根（query.root），必须落在 resolveFsRoot 之内，防越权浏览
@@ -154,7 +188,12 @@ function resolveImagesPerRow(cfg) {
 // 浏览器不可见密码哈希
 function publicConfig(cfg) {
   const { passwordHash, passwordSalt, ...rest } = cfg;
-  return { ...rest, fsRoot: resolveFsRoot(cfg), imagesPerRow: resolveImagesPerRow(cfg) };
+  return {
+    ...rest,
+    fsRoot: resolveFsRoot(cfg),     // 向后兼容：单根（取第一个根）
+    fsRoots: resolveFsRoots(cfg),   // 多根：全部允许的根（前端可用于目录树/限制提示）
+    imagesPerRow: resolveImagesPerRow(cfg),
+  };
 }
 
 module.exports = {
@@ -164,6 +203,8 @@ module.exports = {
   saveConfig,
   getExcludeDirs,
   resolveFsRoot,
+  resolveFsRoots,
+  isWithinAnyRoot,
   resolveImagesPerRow,
   queryRoot,
   resolveBrowseLimit,
