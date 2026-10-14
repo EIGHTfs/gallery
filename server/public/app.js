@@ -63,8 +63,17 @@
   function syncUrlState() {
     try {
       const p = new URLSearchParams(location.search);
-      if (activeDir) p.set("dir", activeDir); else p.delete("dir");
-      if (currentPath) p.set("path", currentPath); else p.delete("path");
+      if (activeDir) {
+        p.set("dir", activeDir);
+        p.set("path", currentPath || "");
+        p.delete("view");
+      } else {
+        // 根视图（“全部/主页”）也显式标记：否则刷新时 URL 无参数，只能靠 localStorage 的
+        // restoreNav 去猜，会把用户跳回“上次进过的子目录”，与当前视图不一致（本地自检实测到）。
+        p.set("view", "all");
+        p.delete("dir");
+        p.delete("path");
+      }
       if (activeFilter && activeFilter !== "all") p.set("cat", activeFilter); else p.delete("cat");
       const qs = p.toString();
       history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + (location.hash || ""));
@@ -75,13 +84,16 @@
   function restoreFromUrl() {
     try {
       const p = new URLSearchParams(location.search);
-      if (!p.has("dir") && !p.has("path") && !p.has("cat")) return false;
+      if (!p.has("dir") && !p.has("path") && !p.has("cat") && !p.has("view")) return false;
       const dir = p.get("dir");
-      if (dir && directories.some((d) => d.path === dir)) {
+      if (p.get("view") === "all") {
+        // 显式根视图：覆盖 restoreNav 的“回到上次目录”，保证「刷新 = 同一视图」
+        activeDir = null;
+        currentPath = "";
+      } else if (dir && directories.some((d) => d.path === dir)) {
         activeDir = dir;
         currentPath = p.get("path") || "";
-      } else if (!dir) {
-        activeDir = null;
+      } else if (p.has("path")) {
         currentPath = p.get("path") || "";
       }
       const cat = p.get("cat");
