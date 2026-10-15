@@ -80,7 +80,13 @@
     const isSeq = frames.length >= MIN_FRAMES;
     const speed = Number(o.speed);
     const hit = isSeq && !!o.hasIni && speed > 0;
-    return { rule: "mod", synth: hit, flip: true, frames: frames, isSeq: isSeq, speed: speed > 0 ? speed : 0 };
+    // flip 不再写死：交给 rule/flip-rule.js 依「ini 是否声明了这张贴图」判定（2026-10-15 拆分，
+    // 原因见 routes/archive.js 与 lib/gif.js 的注释：有 ini 就翻会误伤 mod 包里的预览图）
+    const FlipRule = typeof require === "function" ? require("./flip-rule") : root.FlipRule;
+    const flip = FlipRule
+      ? FlipRule.shouldFlip({ imageName: frames[0] && frames[0].name, iniText: opts && opts.iniText })
+      : false;
+    return { rule: "mod", synth: hit, flip: flip, frames: frames, isSeq: isSeq, speed: speed > 0 ? speed : 0 };
   }
 
   /**
@@ -115,7 +121,7 @@
     const o = opts || {};
     const mod = modGifRule(o);
     const pack = imagePackGifRule(o);
-    if (mod.synth) return { synth: true, rule: "mod", flip: true, frames: mod.frames, frameMs: 0, speed: mod.speed };
+    if (mod.synth) return { synth: true, rule: "mod", flip: mod.flip, frames: mod.frames, frameMs: 0, speed: mod.speed };
     if (pack.synth) return { synth: true, rule: "imagePack", flip: false, frames: pack.frames, frameMs: pack.frameMs, speed: 0 };
     return { synth: false, rule: null, flip: false, frames: mod.frames.length ? mod.frames : pack.frames, frameMs: pack.frameMs, speed: 0 };
   }
@@ -2216,7 +2222,11 @@
       const name = input.value.trim();
       if (!name) { li.remove(); return; }
       const colors = ["#c084fc","#4ade80","#f472b6","#60a5fa","#fbbf24","#fb923c","#38bdf8","#34d399"];
-      categories.push({ name: slugify(name), label: name, color: colors[categories.length % colors.length] });
+      // 分类 id（name）与显示名（label）保持一致（2026-10-15 改）：
+      //   原先 name = slugify(label)，会把「崩坏3」变成 id「bh3」——索引目录按 id 命名
+      //   （cache-index/<id>），于是前端显示「崩坏3」而索引文件夹叫「bh3」，看着对不上。
+      //   目录名由 index-store 的 slugKey() 负责文件系统安全，不需要在这里 slug 化。
+      categories.push({ name: name, label: name, color: colors[categories.length % colors.length] });
       renderCategories(); renderNavBtns(); renderDirTree(); renderDirectories(); render();
       saveSettings();
     }
