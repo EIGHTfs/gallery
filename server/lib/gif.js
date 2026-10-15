@@ -199,7 +199,27 @@ function gifFromZip(zipPath, durMs, res, opts) {
   }
   const hasIni = hasIniEntry(zipPath);
   const speed = hasIni ? readIniSpeed(zipPath) : null;
-  const flip = hasIni; // ini 决定翻转
+  // flip 由 server/lib/rule/flip-rule.js **单点决定**（2026-10-15 从本文件与 gif-rule.js 里拆出来）：
+  //   只有 ini 里真的声明了这张贴图（`filename = xxx`）才翻转；未声明的图（预览图等）不翻。
+  //   为什么不能「有 ini 就翻」：实测希儿.zip 内唯一 ini 是 Android/AUDIO/desktop.ini（音频元数据），
+  //   却把包内预览图翻转了 —— 详见 routes/archive.js 同一处注释。
+  const iniText = hasIni
+    ? require("./archive")
+        .listIniEntries(zipPath)
+        .slice(0, 6)
+        .map((n) => {
+          try {
+            return require("./archive").readArchiveEntryText(zipPath, n);
+          } catch (_) {
+            return "";
+          }
+        })
+        .join("\n")
+    : "";
+  const flip = require("./rule/flip-rule").shouldFlip({
+    imageName: det.frames[0] && det.frames[0].name,
+    iniText,
+  });
   const frameMs = Number.isFinite(durMs) && durMs > 0
     ? durMs
     : (speed ? frameMsFromIniSpeed(speed, fps) : 0);

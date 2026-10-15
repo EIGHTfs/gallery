@@ -21,11 +21,34 @@ test("dry-run：目录一律不合成（口径：只认压缩包 / ini）", () =
   assert.strictEqual(R.shouldSynthDir(), false, "目录不应合成 GIF");
 });
 
-test("dry-run：压缩包命中 mod 规则（含 .ini 且 $speed>0）→ 合成、翻转", () => {
-  const d = R.shouldSynthZip({ names: frames(4), packageName: "某mod", hasIni: true, speed: 0.5 });
+test("dry-run：压缩包命中 mod 规则（含 .ini 且 $speed>0）→ 合成，且只有 ini 声明了该贴图才翻转", () => {
+  const names = frames(4);
+  // 真 3DMigoto mod 的 ini 写法：逐条 `filename = xxx` 声明要用的贴图（实测 Seele_Overbuff.zip 即此形）
+  const iniText = names.map((n) => `filename = ${n}`).join("\n");
+  const d = R.shouldSynthZip({ names, packageName: "某mod", hasIni: true, speed: 0.5, iniText });
   assert.strictEqual(d.synth, true);
   assert.strictEqual(d.rule, "mod");
-  assert.strictEqual(d.flip, true, "mod 需 180° 翻转");
+  assert.strictEqual(d.flip, true, "ini 声明了该贴图 ⇒ 需 180° 翻转");
+});
+
+test("dry-run：含 ini 但 ini 未声明这张图（预览图 / 元数据 ini）→ 不翻转（修误伤）", () => {
+  const names = frames(4);
+  // 实测误伤形态：包内唯一 ini 是 Android/AUDIO/desktop.ini（[LocalizedFileNames] 音频元数据）
+  const iniText = "[LocalizedFileNames]\r\n2510685605-1-627983454.wem=@2510685605-1-627983454.wem,0";
+  const d = R.shouldSynthZip({ names, packageName: "某mod", hasIni: true, speed: 0.5, iniText });
+  assert.strictEqual(d.synth, true, "合成判定不变（仍按 ini + $speed）");
+  assert.strictEqual(d.flip, false, "ini 未声明该贴图 ⇒ 不翻转");
+});
+
+test("翻转规则（独立模块 flip-rule）：声明匹配 / 大小写 / 目录 / 空 ini 的判定", () => {
+  const F = require(path.join(__dirname, "..", "server", "lib", "rule", "flip-rule.js"));
+  const ini = "type = Texture\r\nfilename = textures/Body_Diffuse.DDS\r\nfilename = \"tex/face.png\"\r\n";
+  assert.deepStrictEqual([...F.parseIniRefs(ini)].sort(), ["body_diffuse.dds", "face.png"], "应解析出小写 basename 集合");
+  assert.strictEqual(F.shouldFlip({ imageName: "Body_Diffuse.DDS", iniText: ini }), true, "大小写不敏感");
+  assert.strictEqual(F.shouldFlip({ imageName: "a/b/FACE.png", iniText: ini }), true, "按 basename 匹配（忽略目录）");
+  assert.strictEqual(F.shouldFlip({ imageName: "图片.jpg", iniText: ini }), false, "未声明的预览图不翻转");
+  assert.strictEqual(F.shouldFlip({ imageName: "body_diffuse.dds", iniText: "" }), false, "没有 ini ⇒ 不翻转");
+  assert.strictEqual(F.shouldFlip({ imageName: "body_diffuse.dds", iniText: "[LocalizedFileNames]\r\na=@b,0" }), false, "ini 无 filename 声明 ⇒ 不翻转");
 });
 
 test("dry-run：压缩包命中图包规则（包名带间隔）→ 按间隔合成、不翻转", () => {

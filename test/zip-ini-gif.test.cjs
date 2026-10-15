@@ -96,10 +96,17 @@ console.log("═══ 前端/路由接线守卫 ═══");
 ok("规则模块：mod 合成 / 图包合成 两条规则各自成立", () => {
   const R = require(path.join(ROOT, "server", "lib", "rule", "gif-rule.js"));
   const seq = ["f_001.png", "f_002.png", "f_003.png"];
-  // 规则一 · mod 合成：含 ini 且有 $speed 才合成，且声明翻转
+  // 规则一 · mod 合成：含 ini 且有 $speed 才合成；**翻转由独立模块 flip-rule 决定**
+  //（2026-10-15 改：只有 ini 里声明了该贴图才翻转，避免把 mod 包里的预览图也翻 —— 希儿.zip 实例）
   assert.strictEqual(R.modGifRule({ names: seq, hasIni: true, speed: 0.5 }).synth, true, "mod 规则未命中 ini+$speed");
   assert.strictEqual(R.modGifRule({ names: seq, hasIni: true, speed: 0 }).synth, false, "mod 规则不该在 $speed=0 时命中");
-  assert.strictEqual(R.modGifRule({ names: seq, hasIni: true, speed: 0.5 }).flip, true, "mod 规则未声明翻转");
+  const iniRef = seq.map((n) => `filename = ${n}`).join("\n");
+  assert.strictEqual(R.modGifRule({ names: seq, hasIni: true, speed: 0.5, iniText: iniRef }).flip, true, "ini 声明了该贴图 ⇒ 应翻转");
+  assert.strictEqual(
+    R.modGifRule({ names: seq, hasIni: true, speed: 0.5, iniText: "[LocalizedFileNames]\na=@b,0" }).flip,
+    false,
+    "ini 未声明该贴图（如音频元数据 desktop.ini）⇒ 不应翻转"
+  );
   // 规则二 · 图包合成：包名带间隔才合成，且不翻转
   assert.strictEqual(R.imagePackGifRule({ names: seq, packageName: "pixiv@40ms" }).synth, true, "图包规则未命中包名间隔");
   assert.strictEqual(R.imagePackGifRule({ names: seq, packageName: "普通包名" }).synth, false, "图包规则不该在无间隔时命中");

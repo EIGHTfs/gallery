@@ -44,8 +44,28 @@ function apiZipImg(query, res) {
     res.end("bad request");
     return;
   }
-  // 含 ini 的包：贴图倒置存储 → 输出前 180° 翻转（单帧 GIF 承载，理由见 lib/gif.js）
-  if (hasIniEntry(zp)) return flipArchiveImage(zp, file, res);
+  // 含 ini 的包：**只有当 ini 里真的声明了这张图**才 180° 翻转（单帧 GIF 承载，理由见 lib/gif.js）。
+  // 口径由 server/lib/rule/flip-rule.js 单点决定（2026-10-15 拆分出来）。
+  // 为什么不能「有 ini 就翻」：实测误伤 —— 希儿.zip 内唯一的 ini 是 Android/AUDIO/desktop.ini
+  //   （音频元数据 [LocalizedFileNames]，不是 mod 贴图 ini），却被当成 mod 贴图把包内那张预览图翻转了；
+  //   真 mod（Seele_Overbuff.zip）的 ini 是 [Resource_*] + `filename = xxx.buf` 这种写法。
+  //   ⇒ 未在 ini 中声明的图片（预览图等）一律原样输出。
+  const iniText = hasIniEntry(zp)
+    ? require("../lib/archive")
+        .listIniEntries(zp)
+        .slice(0, 6)
+        .map((n) => {
+          try {
+            return require("../lib/archive").readArchiveEntryText(zp, n);
+          } catch (_) {
+            return "";
+          }
+        })
+        .join("\n")
+    : "";
+  if (require("../lib/rule/flip-rule").shouldFlip({ imageName: file, iniText })) {
+    return flipArchiveImage(zp, file, res);
+  }
   streamArchiveImage(res, zp, file);
 }
 

@@ -80,7 +80,13 @@
     const isSeq = frames.length >= MIN_FRAMES;
     const speed = Number(o.speed);
     const hit = isSeq && !!o.hasIni && speed > 0;
-    return { rule: "mod", synth: hit, flip: true, frames: frames, isSeq: isSeq, speed: speed > 0 ? speed : 0 };
+    // flip 不再写死：交给 rule/flip-rule.js 依「ini 是否声明了这张贴图」判定（2026-10-15 拆分，
+    // 原因见 routes/archive.js 与 lib/gif.js 的注释：有 ini 就翻会误伤 mod 包里的预览图）
+    const FlipRule = typeof require === "function" ? require("./flip-rule") : root.FlipRule;
+    const flip = FlipRule
+      ? FlipRule.shouldFlip({ imageName: frames[0] && frames[0].name, iniText: opts && opts.iniText })
+      : false;
+    return { rule: "mod", synth: hit, flip: flip, frames: frames, isSeq: isSeq, speed: speed > 0 ? speed : 0 };
   }
 
   /**
@@ -115,7 +121,7 @@
     const o = opts || {};
     const mod = modGifRule(o);
     const pack = imagePackGifRule(o);
-    if (mod.synth) return { synth: true, rule: "mod", flip: true, frames: mod.frames, frameMs: 0, speed: mod.speed };
+    if (mod.synth) return { synth: true, rule: "mod", flip: mod.flip, frames: mod.frames, frameMs: 0, speed: mod.speed };
     if (pack.synth) return { synth: true, rule: "imagePack", flip: false, frames: pack.frames, frameMs: pack.frameMs, speed: 0 };
     return { synth: false, rule: null, flip: false, frames: mod.frames.length ? mod.frames : pack.frames, frameMs: pack.frameMs, speed: 0 };
   }
