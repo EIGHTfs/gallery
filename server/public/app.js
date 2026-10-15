@@ -82,9 +82,11 @@
     const hit = isSeq && !!o.hasIni && speed > 0;
     // flip 不再写死：交给 rule/flip-rule.js 依「ini 是否声明了这张贴图」判定（2026-10-15 拆分，
     // 原因见 routes/archive.js 与 lib/gif.js 的注释：有 ini 就翻会误伤 mod 包里的预览图）
-    const FlipRule = typeof require === "function" ? require("./flip-rule") : root.FlipRule;
-    const flip = FlipRule
-      ? FlipRule.shouldFlip({ imageName: frames[0] && frames[0].name, iniText: opts && opts.iniText })
+    // ⚠️ 此前用 root.FlipRule 在浏览器端抛 ReferenceError ⇒ 整个压缩包渲染炸掉（用户报「压缩包不显示」）
+    // ⚠️ 修法：浏览器端没有 flip-rule.js 也不需要翻转（翻转是服务端 /api/zip/img 做的）⇒ 永远 false
+    //    服务端有 flip-rule.js ⇒ require 成功 ⇒ 正常判定 ✓
+    const flip = (typeof require === "function")
+      ? require("./flip-rule").shouldFlip({ imageName: frames[0] && frames[0].name, iniText: opts && opts.iniText })
       : false;
     return { rule: "mod", synth: hit, flip: flip, frames: frames, isSeq: isSeq, speed: speed > 0 ? speed : 0 };
   }
@@ -447,6 +449,27 @@
     // 必须放在**任何 render() 之前**——实测 loadLang() 内部会触发一次渲染（138ms 时视图为 "(null)|"），
     // 若放在 loadLang() 之后，首屏仍会先闪一下主页再跳回上次位置。
     restoreNav();
+    // 支持 ?dir=<相对路径> 直达指定目录（例如 ?dir=崩坏3/Mods/.Mods/(gamebanana)/女武神/xxx）
+    // 优先级高于 localStorage 里存的导航状态；root 名从 directories 匹配（后缀匹配），剩余部分作为 currentPath
+    try {
+      const urlDir = new URLSearchParams(location.search).get("dir");
+      if (urlDir && directories.length) {
+        for (const d of directories) {
+          const rootBasename = (d.path || "").split("/").pop();
+          if (urlDir.startsWith(rootBasename)) {
+            activeDir = d.path;
+            const rest = urlDir.slice(rootBasename.length).replace(/^\//, "");
+            currentPath = rest;
+            activeFilter = d.category || "all";
+            break;
+          }
+        }
+      }
+    } catch (_) { /* URL 参数解析失败不影响正常加载 */
+    } finally {
+      // 用完即清：地址栏不保留 ?dir=（用户明确要求）
+      try { history.replaceState(null, "", location.pathname); } catch (_) {}
+    }
     await loadLang(lang);
     document.querySelector(".logo-text").textContent = galleryTitle;
     galleryTitleInput.value = galleryTitle;
