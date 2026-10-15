@@ -65,6 +65,7 @@
   "templates/_gallery/test/index-store-utf8.test.cjs": "test/index-store-utf8.test.cjs",
   "templates/_gallery/server/lib/rule/flip-rule.js": "server/lib/rule/flip-rule.js",
   "scripts/extract-render-points.mjs": "scripts/extract-render-points.mjs",
+  "scripts/scan-fs-hotspots.mjs": "scripts/scan-fs-hotspots.mjs",
     "templates/js/tool/tool-detect.js": "server/tool/tool-detect.js",
     "templates/js/server/lib/auto-update.js": "server/lib/auto-update.js"
   },
