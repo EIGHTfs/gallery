@@ -64,6 +64,15 @@ module.exports = function register(api) {
     }, 200);
   });
 
+  // GET /api/index-cache —— 索引缓存统计（免鉴权：只含计数与上限，不含任何路径或条目内容）
+  // 用途：让调用方（含自动化巡检）能直接读出「缓存是否真在生效」，不必用耗时间接推断。
+  // 契约：ok / enabled / hit / miss / hitRate / stale / evict / invalidate / entries / bytes / limitBytes
+  // enabled=false 表示已用 GALLERY_INDEX_CACHE=0 关闭，此时 hit/miss 不增长属正常现象。
+  routePublic("*", "/api/index-cache", (req, res) => {
+    const indexCache = require("../lib/index-cache");
+    return sendJson(res, Object.assign({ ok: true }, indexCache.stats()), 200);
+  });
+
   // POST /api/change-password（需鉴权）
   // 已设密码时改密必须验旧密码（防被盗 session 锁死原主）；首次设置无需旧密码
   route("POST", "/api/change-password", async (req, res) => {

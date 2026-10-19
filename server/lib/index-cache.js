@@ -104,11 +104,14 @@ function invalidate(file) {
 }
 
 function stats() {
+  const total = counters.hit + counters.miss;
   return Object.assign({}, counters, {
     entries: cache.size,
     bytes: totalBytes(),
     limitBytes: limitBytes,
     enabled: enabled,
+    // 命中率（百分数，保留 1 位）：分母只取「有明确结论的访问」= 命中 + 未命中；stale 已计入 miss
+    hitRate: total > 0 ? Math.round((counters.hit / total) * 1000) / 10 : 0,
   });
 }
 

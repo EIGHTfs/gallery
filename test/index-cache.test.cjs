@@ -44,6 +44,7 @@ test("未命中调用 loader；命中后不再调用 loader", () => {
   const st = cache.stats();
   assert.strictEqual(st.hit, 1);
   assert.strictEqual(st.miss, 1);
+  assert.strictEqual(st.hitRate, 50, "1 命中 / 1 未命中 ⇒ 命中率应为 50%");
   cleanup(file);
 });
 
