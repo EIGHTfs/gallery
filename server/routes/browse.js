@@ -147,7 +147,25 @@ async function apiImages(query, res) {
       }
     }
 
-    jsonRes(res, 200, { path: searchPath, root, recursive, count: files.length, images: files });
+    // 可选分页：不传 limit（或非法 / ≤0）⇒ 全量返回，与引入分页前**完全一致**（向后兼容）。
+    // count 保持「总数」语义不变；本页实际返回数量另给 returned。
+    // 新增的 total/offset/limit/returned 都是附加字段，既有调用方忽略即可，不会破坏。
+    const paginate = require("../lib/paginate");
+    const paging = paginate.resolvePaging(query);
+    const total = files.length;
+    const pageImages = paginate.slicePage(files, paging);
+
+    jsonRes(res, 200, {
+      path: searchPath,
+      root,
+      recursive,
+      count: total,
+      total,
+      offset: paging.offset,
+      limit: paging.limit,
+      returned: pageImages.length,
+      images: pageImages,
+    });
   } catch (e) {
     jsonRes(res, 500, { error: e.message, images: [] });
   }
