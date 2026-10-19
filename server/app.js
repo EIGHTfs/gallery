@@ -197,6 +197,9 @@ createServer({
     "/api/login",
     "/api/logout",
     "/api/status",
+    // 索引缓存统计：只读计数（不含路径与条目内容），浏览开放语义下也应可读
+    // 漏登记的表现：路由里写了 routePublic 仍返回 401——登录白名单是这一处的硬清单，两处都要加
+    "/api/index-cache",
     // 浏览类：拾光集语义是「浏览开放、改设置需登录」
     "/api/directories",
     "/api/images",
