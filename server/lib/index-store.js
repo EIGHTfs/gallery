@@ -21,6 +21,9 @@ const path = require("path");
 //   于是前端 im.path.startsWith(配置根) 匹配失败、图片被挂到错误的根上（面包屑显示成绝对路径链）。
 //   实例：鸣潮根 26275 张里有 1 张中招，与「每个 1MB 边界最多坏一个字符」的特征一致。
 const { StringDecoder } = require("node:string_decoder");
+// 索引读路径的内存缓存（按文件 mtime+size 失效、按字节上限 LRU）。
+// 索引文件磁盘格式不变：缓存只消除「同一份文件被每个请求反复扫盘+解析」的重复工作。
+const indexCache = require("./index-cache");
 // 与 scan.js 共用同一个体积格式化函数 —— 保证索引产出与整树扫描产出**逐字节一致**（前端显示不得变化）
 const { formatSize } = require("./util");
 
@@ -106,8 +109,8 @@ function jsonlPathFor(category) {
   return path.join(categoryDir(category), "index.jsonl");
 }
 
-/** 流式读取某一目录条目（命中即停；找不到返回 null） */
-function readDirEntryJsonl(category, key) {
+/** 流式读取某一目录条目（命中即停；找不到返回 null）——不走缓存的原实现，缓存关闭时使用 */
+function readDirEntryJsonlFromDisk(category, key) {
   const file = jsonlPathFor(category);
   let fd;
   try {
@@ -150,6 +153,17 @@ function readDirEntryJsonl(category, key) {
   } finally {
     try { fs.closeSync(fd); } catch (_) { /* ignore */ }
   }
+}
+
+/**
+ * 读某一目录条目（找不到返回 null）。
+ * 默认走整份缓存：递归遍历与单目录读取共用同一份 Map，避免同一文件被读两遍；
+ * 单目录读取首次会全量载入，但之后命中缓存——原「扫到命中即停」在目标行靠后时反而更慢。
+ * 关闭缓存（GALLERY_INDEX_CACHE=0）时退回原实现，便于对照与排障。
+ */
+function readDirEntryJsonl(category, key) {
+  if (!indexCache.isEnabled()) return readDirEntryJsonlFromDisk(category, key);
+  return loadAllJsonl(category).get(key) || null;
 }
 
 /** 流式更新/追加某目录条目（逐行复制 + 替换那一行；内存只留一行） */
@@ -207,11 +221,21 @@ function upsertDirEntryJsonl(category, key, entry) {
     try { fs.closeSync(out); } catch (_) { /* ignore */ }
   }
   fs.renameSync(tmp, file);
+  // 落盘后立刻失效缓存：指纹（mtime+size）虽能兜底，但同一毫秒内改写可能让指纹不变
+  indexCache.invalidate(file);
   return true;
 }
 
-/** 流式载入整份 JSONL 为 Map（内存只保留条目本身，不做一次性 JSON.parse；用于递归遍历） */
+/**
+ * 载入整份 JSONL（递归遍历用）。
+ * 命中缓存时直接返回同一份 Map，不再扫盘；未命中才走下面的读盘实现并由缓存登记。
+ */
 function loadAllJsonl(category) {
+  return indexCache.getMap(jsonlPathFor(category), () => loadAllJsonlFromDisk(category));
+}
+
+/** 流式载入整份 JSONL 为 Map（内存只保留条目本身，不做一次性 JSON.parse；用于递归遍历）——不走缓存的原实现 */
+function loadAllJsonlFromDisk(category) {
   const file = jsonlPathFor(category);
   const map = new Map();
   let fd;
@@ -269,6 +293,8 @@ function writeAllJsonl(category, map) {
     try { fs.closeSync(out); } catch (_) { /* ignore */ }
   }
   fs.renameSync(tmp, file);
+  // 落盘后立刻失效缓存（理由同 upsertDirEntryJsonl：指纹在极端情况下可能不变）
+  indexCache.invalidate(file);
   return map.size;
 }
 
