@@ -74,12 +74,20 @@ function readBody(req, limit = BODY_SIZE_LIMIT) {
         fs.readFile(tmpPath, "utf8", (err, data) => {
           cleanup();
           if (err) return reject(err);
+          // 原始请求体始终留一份：handler 与预读共用同一份缓存，但「要原文」的接口
+          //   （JSONL 索引 / 搜索记录导入）可以直接取 req._rawBody 自行解析，不必再读流。
+          req._rawBody = data || "";
           try {
             const parsed = data ? JSON.parse(data) : {};
             req._bodyCache = parsed;
             resolve(parsed);
           } catch (_) {
-            reject(new Error("无效的 JSON"));
+            // 2026-10-15：JSON 解析失败不再直接抛错，改为**把原文交给调用方**。
+            //   为什么：索引与搜索记录改 JSONL 后，导入请求体本身就是「一行行 JSON」（整体不是合法 JSON），
+            //   旧行为会让这类导入固定失败。改后：拿到 string ⇒ 语义是「不是 JSON，请按原文处理」；
+            //   各导入接口据此自行解析 JSONL。原本只处理对象的旧接口行为不变（它们拿到的仍是对象或空对象）。
+            req._bodyCache = req._rawBody;
+            resolve(req._rawBody);
           }
         });
       });

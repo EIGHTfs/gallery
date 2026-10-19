@@ -257,6 +257,10 @@ function createServer(opts) {
       // 不传 host 时 Node 监听 ::/0.0.0.0（局域网可访问）。
       // 旧日志只打 localhost，易被误读成「只能本机访问」，故补上局域网地址。
       console.log("服务启动: http://localhost:" + port + "  (局域网: http://<本机IP>:" + port + ")");
+      // 2026-10-15：补打运行环境 Node 版本。
+      //   为什么：能力可用性直接取决于 Node 版本（例如内置 node:sqlite 需 ≥22.5，
+      //   实测 v20.19.5 / v14.21.1 都没有），排障时要先能一眼看出跑在哪个版本上。
+      console.log("运行环境: Node " + process.version);
     if (onReady) onReady(port);
   });
 
